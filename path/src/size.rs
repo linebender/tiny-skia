@@ -15,7 +15,7 @@ use crate::NoStdFloat;
 /// # Guarantees
 ///
 /// - Width and height are positive and non-zero.
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug, Hash, Eq)]
 pub struct IntSize {
     width: LengthU32,
     height: LengthU32,
