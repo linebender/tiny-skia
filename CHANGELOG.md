@@ -59,7 +59,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 - `ColorU8` and `PremultipliedColorU8` are stored as `[u8; 4]` instead of `u32`.
-  This fixes potential [alignment issues](https://github.com/RazrFalcon/tiny-skia/issues/70)
+  This fixes potential [alignment issues](https://github.com/linebender/tiny-skia/issues/70)
   and make the code easier to understand.
   Thanks to [@e00E](https://github.com/e00E)
 - `PathBuilder::push_rect` accepts `Rect` and not `f32` numbers now.
@@ -248,31 +248,31 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### Added
 - Bindings to a stripped down Skia fork.
 
-[Unreleased]: https://github.com/RazrFalcon/tiny-skia/compare/v0.11.4...HEAD
-[0.11.4]: https://github.com/RazrFalcon/tiny-skia/compare/v0.11.3...v0.11.4
-[0.11.3]: https://github.com/RazrFalcon/tiny-skia/compare/v0.11.2...v0.11.3
-[0.11.2]: https://github.com/RazrFalcon/tiny-skia/compare/v0.11.1...v0.11.2
-[0.11.1]: https://github.com/RazrFalcon/tiny-skia/compare/v0.11.0...v0.11.1
-[0.11.0]: https://github.com/RazrFalcon/tiny-skia/compare/v0.10.0...v0.11.0
-[0.10.0]: https://github.com/RazrFalcon/tiny-skia/compare/v0.9.1...v0.10.0
-[0.9.1]: https://github.com/RazrFalcon/tiny-skia/compare/v0.9.0...v0.9.1
-[0.9.0]: https://github.com/RazrFalcon/tiny-skia/compare/v0.8.4...v0.9.0
-[0.8.4]: https://github.com/RazrFalcon/tiny-skia/compare/v0.8.3...v0.8.4
-[0.8.3]: https://github.com/RazrFalcon/tiny-skia/compare/v0.8.2...v0.8.3
-[0.8.2]: https://github.com/RazrFalcon/tiny-skia/compare/v0.8.1...v0.8.2
-[0.8.1]: https://github.com/RazrFalcon/tiny-skia/compare/v0.8.0...v0.8.1
-[0.8.0]: https://github.com/RazrFalcon/tiny-skia/compare/v0.7.0...v0.8.0
-[0.7.0]: https://github.com/RazrFalcon/tiny-skia/compare/v0.6.6...v0.7.0
-[0.6.6]: https://github.com/RazrFalcon/tiny-skia/compare/v0.6.5...v0.6.6
-[0.6.5]: https://github.com/RazrFalcon/tiny-skia/compare/v0.6.4...v0.6.5
-[0.6.4]: https://github.com/RazrFalcon/tiny-skia/compare/v0.6.3...v0.6.4
-[0.6.3]: https://github.com/RazrFalcon/tiny-skia/compare/v0.6.2...v0.6.3
-[0.6.2]: https://github.com/RazrFalcon/tiny-skia/compare/v0.6.1...v0.6.2
-[0.6.1]: https://github.com/RazrFalcon/tiny-skia/compare/v0.6.0...v0.6.1
-[0.6.0]: https://github.com/RazrFalcon/tiny-skia/compare/v0.5.1...v0.6.0
-[0.5.1]: https://github.com/RazrFalcon/tiny-skia/compare/v0.5.0...v0.5.1
-[0.5.0]: https://github.com/RazrFalcon/tiny-skia/compare/v0.4.2...v0.5.0
-[0.4.2]: https://github.com/RazrFalcon/tiny-skia/compare/v0.4.1...v0.4.2
-[0.4.1]: https://github.com/RazrFalcon/tiny-skia/compare/v0.4.0...v0.4.1
-[0.4.0]: https://github.com/RazrFalcon/tiny-skia/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/RazrFalcon/tiny-skia/compare/v0.2.0...v0.3.0
+[Unreleased]: https://github.com/linebender/tiny-skia/compare/v0.11.4...HEAD
+[0.11.4]: https://github.com/linebender/tiny-skia/compare/v0.11.3...v0.11.4
+[0.11.3]: https://github.com/linebender/tiny-skia/compare/v0.11.2...v0.11.3
+[0.11.2]: https://github.com/linebender/tiny-skia/compare/v0.11.1...v0.11.2
+[0.11.1]: https://github.com/linebender/tiny-skia/compare/v0.11.0...v0.11.1
+[0.11.0]: https://github.com/linebender/tiny-skia/compare/v0.10.0...v0.11.0
+[0.10.0]: https://github.com/linebender/tiny-skia/compare/v0.9.1...v0.10.0
+[0.9.1]: https://github.com/linebender/tiny-skia/compare/v0.9.0...v0.9.1
+[0.9.0]: https://github.com/linebender/tiny-skia/compare/v0.8.4...v0.9.0
+[0.8.4]: https://github.com/linebender/tiny-skia/compare/v0.8.3...v0.8.4
+[0.8.3]: https://github.com/linebender/tiny-skia/compare/v0.8.2...v0.8.3
+[0.8.2]: https://github.com/linebender/tiny-skia/compare/v0.8.1...v0.8.2
+[0.8.1]: https://github.com/linebender/tiny-skia/compare/v0.8.0...v0.8.1
+[0.8.0]: https://github.com/linebender/tiny-skia/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/linebender/tiny-skia/compare/v0.6.6...v0.7.0
+[0.6.6]: https://github.com/linebender/tiny-skia/compare/v0.6.5...v0.6.6
+[0.6.5]: https://github.com/linebender/tiny-skia/compare/v0.6.4...v0.6.5
+[0.6.4]: https://github.com/linebender/tiny-skia/compare/v0.6.3...v0.6.4
+[0.6.3]: https://github.com/linebender/tiny-skia/compare/v0.6.2...v0.6.3
+[0.6.2]: https://github.com/linebender/tiny-skia/compare/v0.6.1...v0.6.2
+[0.6.1]: https://github.com/linebender/tiny-skia/compare/v0.6.0...v0.6.1
+[0.6.0]: https://github.com/linebender/tiny-skia/compare/v0.5.1...v0.6.0
+[0.5.1]: https://github.com/linebender/tiny-skia/compare/v0.5.0...v0.5.1
+[0.5.0]: https://github.com/linebender/tiny-skia/compare/v0.4.2...v0.5.0
+[0.4.2]: https://github.com/linebender/tiny-skia/compare/v0.4.1...v0.4.2
+[0.4.1]: https://github.com/linebender/tiny-skia/compare/v0.4.0...v0.4.1
+[0.4.0]: https://github.com/linebender/tiny-skia/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/linebender/tiny-skia/compare/v0.2.0...v0.3.0
