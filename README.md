@@ -1,5 +1,5 @@
 # tiny-skia
-![Build Status](https://github.com/RazrFalcon/tiny-skia/workflows/Rust/badge.svg)
+![Build Status](https://github.com/linebender/tiny-skia/workflows/Rust/badge.svg)
 [![Crates.io](https://img.shields.io/crates/v/tiny-skia.svg)](https://crates.io/crates/tiny-skia)
 [![Documentation](https://docs.rs/tiny-skia/badge.svg)](https://docs.rs/tiny-skia)
 
@@ -12,7 +12,7 @@ And while `tiny-skia` is definitely tiny, it support all the common 2D operation
 like: filling and stroking a shape with a solid color, gradient or pattern;
 stroke dashing; clipping; images blending; PNG load/save.
 The main missing feature is text rendering
-(see [#1](https://github.com/RazrFalcon/tiny-skia/issues/1)).
+(see [#1](https://github.com/linebender/tiny-skia/issues/1)).
 
 **Note:** this is not a Skia replacement and never will be. It's more of a research project.
 
@@ -137,4 +137,4 @@ The same as used by [Skia]: [New BSD License](./LICENSE)
 [Skia]: https://skia.org/
 [cairo]: https://www.cairographics.org/
 [raqote]: https://github.com/jrmuizel/raqote
-[resvg]: https://github.com/RazrFalcon/resvg
+[resvg]: https://github.com/linebender/resvg

@@ -1,9 +1,9 @@
 # tiny-skia-path
-![Build Status](https://github.com/RazrFalcon/tiny-skia/workflows/Rust/badge.svg)
+![Build Status](https://github.com/linebender/tiny-skia/workflows/Rust/badge.svg)
 [![Crates.io](https://img.shields.io/crates/v/tiny-skia-path.svg)](https://crates.io/crates/tiny-skia-path)
 [![Documentation](https://docs.rs/tiny-skia-path/badge.svg)](https://docs.rs/tiny-skia-path)
 
-A [tiny-skia](https://github.com/RazrFalcon/tiny-skia) Bezier path implementation.
+A [tiny-skia](https://github.com/linebender/tiny-skia) Bezier path implementation.
 
 Provides a memory-efficient Bezier path container, path builder, path stroker and path dasher.
 

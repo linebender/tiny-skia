@@ -4,7 +4,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-//! A [tiny-skia](https://github.com/RazrFalcon/tiny-skia) Bezier path implementation.
+//! A [tiny-skia](https://github.com/linebender/tiny-skia) Bezier path implementation.
 //!
 //! Provides a memory-efficient Bezier path container, path builder, path stroker and path dasher.
 //!
