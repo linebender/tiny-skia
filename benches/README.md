@@ -19,9 +19,9 @@ Benchmarking is hard... (c)
 
 ## Results
 
-[x86-64 Results](https://razrfalcon.github.io/tiny-skia/x86_64.html)
+[x86-64 Results](https://linebender.github.io/tiny-skia/x86_64.html)
 
-[ARM Results](https://razrfalcon.github.io/tiny-skia/arm.html)
+[ARM Results](https://linebender.github.io/tiny-skia/arm.html)
 
 ## Running benchmarks
 

@@ -45,7 +45,7 @@ and adds around 200KiB to your binary.
 
 Currently, `tiny-skia` is 20-100% slower than Skia on x86-64 and about 100-300% slower on ARM.
 Which is still faster than [cairo] and [raqote] in many cases.
-See benchmark results [here](https://razrfalcon.github.io/tiny-skia/x86_64.html).
+See benchmark results [here](https://linebender.github.io/tiny-skia/x86_64.html).
 
 The heart of Skia's CPU rendering is
 [SkRasterPipeline](https://github.com/google/skia/blob/master/src/opts/SkRasterPipeline_opts.h).
