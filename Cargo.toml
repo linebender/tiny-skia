@@ -37,4 +37,4 @@ no-std-float = ["tiny-skia-path/no-std-float"]
 simd = []
 
 # Allows loading and saving `Pixmap` as PNG.
-png-format = ["std", "png"]
+png-format = ["std", "dep:png"]
