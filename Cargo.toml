@@ -2,7 +2,7 @@
 name = "tiny-skia"
 version = "0.11.4"
 authors = ["Yevhenii Reizner <razrfalcon@gmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "A tiny Skia subset ported to Rust."
 documentation = "https://docs.rs/tiny-skia/"
 readme = "README.md"
