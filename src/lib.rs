@@ -38,7 +38,6 @@ mod alpha_runs;
 mod blend_mode;
 mod blitter;
 mod color;
-mod color_names;
 mod edge;
 mod edge_builder;
 mod edge_clipper;
@@ -60,7 +59,6 @@ mod painter; // Keep it under `pixmap` for a better order in the docs.
 pub use blend_mode::BlendMode;
 pub use color::{Color, ColorSpace, ColorU8, PremultipliedColor, PremultipliedColorU8};
 pub use color::{ALPHA_OPAQUE, ALPHA_TRANSPARENT, ALPHA_U8_OPAQUE, ALPHA_U8_TRANSPARENT};
-pub use color_names::*;
 pub use mask::{Mask, MaskType};
 pub use painter::{FillRule, Paint};
 pub use pixmap::{Pixmap, PixmapMut, PixmapRef, BYTES_PER_PIXEL};
