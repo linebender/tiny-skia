@@ -23,7 +23,7 @@ struct SwappableBuilders<'a> {
     outer: &'a mut PathBuilder,
 }
 
-impl<'a> SwappableBuilders<'a> {
+impl SwappableBuilders<'_> {
     fn swap(&mut self) {
         // Skia swaps pointers to inner and outer builders during joining,
         // but not builders itself. So a simple `core::mem::swap` will produce invalid results.
