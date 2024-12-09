@@ -228,7 +228,7 @@ impl Color {
     /// # Safety
     ///
     /// All values must be in 0..=1 range.
-    pub const unsafe fn from_unchecked_rgba(r: f32, g: f32, b: f32, a: f32) -> Self {
+    pub const unsafe fn from_rgba_unchecked(r: f32, g: f32, b: f32, a: f32) -> Self {
         Color {
             r: NormalizedF32::new_unchecked(r),
             g: NormalizedF32::new_unchecked(g),
