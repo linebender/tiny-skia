@@ -264,8 +264,8 @@ impl f32x8 {
 
         let mut a = x + f32x8::splat(121.274057500);
         a = a - f * f32x8::splat(1.490129070);
-        a = a + f32x8::splat(27.728023300) / (f32x8::splat(4.84252568) - f);
-        a = a * f32x8::splat((1 << 23) as f32);
+        a += f32x8::splat(27.728023300) / (f32x8::splat(4.84252568) - f);
+        a *= f32x8::splat((1 << 23) as f32);
 
         let inf_bits = f32x8::splat(f32::INFINITY.to_bits() as f32);
 
