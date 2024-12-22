@@ -115,3 +115,12 @@ jobs:
 
     - name: Rust tests on PowerPC (big endian)
       run: cross test --target powerpc-unknown-linux-gnu
+
+  # If this fails, consider changing your text or adding something to .typos.toml.
+  typos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: check typos
+        uses: crate-ci/typos@v1.28.4

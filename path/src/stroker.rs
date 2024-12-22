@@ -1220,7 +1220,7 @@ impl PathStroker {
         if valid_divide {
             if intersect_ray_type == IntersectRayType::CtrlPt {
                 // the intersection of the tangents need not be on the tangent segment
-                // so 0 <= numerA <= 1 is not necessarily true
+                // so 0 <= numer_a <= 1 is not necessarily true
                 quad_points.quad[1].x =
                     start.x * (1.0 - numer_a) + quad_points.tangent_start.x * numer_a;
                 quad_points.quad[1].y =
