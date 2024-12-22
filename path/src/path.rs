@@ -265,7 +265,7 @@ pub struct PathSegmentsIter<'a> {
     last_point: Point,
 }
 
-impl<'a> PathSegmentsIter<'a> {
+impl PathSegmentsIter<'_> {
     /// Sets the auto closing mode. Off by default.
     ///
     /// When enabled, emits an additional `PathSegment::Line` from the current position
@@ -331,7 +331,7 @@ impl<'a> PathSegmentsIter<'a> {
     }
 }
 
-impl<'a> Iterator for PathSegmentsIter<'a> {
+impl Iterator for PathSegmentsIter<'_> {
     type Item = PathSegment;
 
     fn next(&mut self) -> Option<Self::Item> {

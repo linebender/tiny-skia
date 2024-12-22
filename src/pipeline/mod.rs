@@ -143,7 +143,7 @@ pub enum Stage {
 
 pub const STAGES_COUNT: usize = Stage::GammaCompressSrgb as usize + 1;
 
-impl<'a> PixmapRef<'a> {
+impl PixmapRef<'_> {
     #[inline(always)]
     pub(crate) fn gather(&self, index: u32x8) -> [PremultipliedColorU8; highp::STAGE_WIDTH] {
         let index: [u32; 8] = bytemuck::cast(index);
@@ -161,7 +161,7 @@ impl<'a> PixmapRef<'a> {
     }
 }
 
-impl<'a> SubPixmapMut<'a> {
+impl SubPixmapMut<'_> {
     #[inline(always)]
     pub(crate) fn offset(&self, dx: usize, dy: usize) -> usize {
         self.real_width * dy + dx

@@ -571,7 +571,7 @@ pub struct SubPixmapMut<'a> {
     pub real_width: usize,
 }
 
-impl<'a> SubPixmapMut<'a> {
+impl SubPixmapMut<'_> {
     /// Returns a mutable slice of pixels.
     pub fn pixels_mut(&mut self) -> &mut [PremultipliedColorU8] {
         bytemuck::cast_slice_mut(self.data)

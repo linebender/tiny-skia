@@ -86,7 +86,7 @@ impl Default for Paint<'_> {
     }
 }
 
-impl<'a> Paint<'a> {
+impl Paint<'_> {
     /// Sets a paint source to a solid color.
     pub fn set_color(&mut self, color: Color) {
         self.shader = Shader::SolidColor(color);

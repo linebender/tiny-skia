@@ -56,7 +56,7 @@ pub enum Shader<'a> {
     Pattern(Pattern<'a>),
 }
 
-impl<'a> Shader<'a> {
+impl Shader<'_> {
     /// Checks if the shader is guaranteed to produce only opaque colors.
     pub fn is_opaque(&self) -> bool {
         match self {

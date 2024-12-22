@@ -269,7 +269,7 @@ pub struct PathEdgeIter<'a> {
     needs_close_line: bool,
 }
 
-impl<'a> PathEdgeIter<'a> {
+impl PathEdgeIter<'_> {
     fn close_line(&mut self) -> Option<PathEdge> {
         self.needs_close_line = false;
 
@@ -278,7 +278,7 @@ impl<'a> PathEdgeIter<'a> {
     }
 }
 
-impl<'a> Iterator for PathEdgeIter<'a> {
+impl Iterator for PathEdgeIter<'_> {
     type Item = PathEdge;
 
     fn next(&mut self) -> Option<Self::Item> {
