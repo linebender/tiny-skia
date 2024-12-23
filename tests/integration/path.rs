@@ -252,7 +252,7 @@ fn invalid_transform() {
     let path = pb.finish().unwrap();
 
     // will produce infinity
-    assert_eq!(path.transform(Transform::from_scale(std::f32::MAX, std::f32::MAX)), None);
+    assert_eq!(path.transform(Transform::from_scale(f32::MAX, f32::MAX)), None);
 }
 
 #[test]
