@@ -4,7 +4,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-use crate::{BlendMode, Color, LengthU32, Paint, PixmapRef, PremultipliedColorU8, Shader};
+use crate::{BlendMode, Color, LengthU32, Mipmaps, Paint, PixmapRef, PremultipliedColorU8, Shader};
 use crate::{ALPHA_U8_OPAQUE, ALPHA_U8_TRANSPARENT};
 
 use crate::alpha_runs::AlphaRun;
@@ -18,13 +18,13 @@ use crate::pixmap::SubPixmapMut;
 
 pub struct RasterPipelineBlitter<'a, 'b: 'a> {
     mask: Option<SubMaskRef<'a>>,
-    pixmap_src: PixmapRef<'a>,
     pixmap: &'a mut SubPixmapMut<'b>,
     memset2d_color: Option<PremultipliedColorU8>,
     blit_anti_h_rp: RasterPipeline,
     blit_rect_rp: RasterPipeline,
     blit_mask_rp: RasterPipeline,
     is_mask: bool,
+    mipmaps: Mipmaps<'a>,
 }
 
 impl<'a, 'b: 'a> RasterPipelineBlitter<'a, 'b> {
@@ -201,13 +201,13 @@ impl<'a, 'b: 'a> RasterPipelineBlitter<'a, 'b> {
 
         Some(RasterPipelineBlitter {
             mask,
-            pixmap_src,
             pixmap,
             memset2d_color,
             blit_anti_h_rp,
             blit_rect_rp,
             blit_mask_rp,
             is_mask: false,
+            mipmaps: Mipmaps::new(pixmap_src),
         })
     }
 
@@ -241,15 +241,16 @@ impl<'a, 'b: 'a> RasterPipelineBlitter<'a, 'b> {
             p.compile()
         };
 
+        let pixmap_src = PixmapRef::from_bytes(&[0, 0, 0, 0], 1, 1).unwrap();
         Some(RasterPipelineBlitter {
             mask: None,
-            pixmap_src: PixmapRef::from_bytes(&[0, 0, 0, 0], 1, 1).unwrap(),
             pixmap,
             memset2d_color,
             blit_anti_h_rp,
             blit_rect_rp,
             blit_mask_rp,
             is_mask: true,
+            mipmaps: Mipmaps::new(pixmap_src),
         })
     }
 }
@@ -276,13 +277,18 @@ impl Blitter for RasterPipelineBlitter<'_, '_> {
                 }
                 alpha => {
                     self.blit_anti_h_rp.ctx.current_coverage = alpha as f32 * (1.0 / 255.0);
-
                     let rect = ScreenIntRect::from_xywh_safe(x, y, width, LENGTH_U32_ONE);
+
+                    let mipmap_index = self
+                        .mipmaps
+                        .build(self.blit_anti_h_rp.ctx.required_mipmap_levels);
+                    let pixmap_src = self.mipmaps.get(mipmap_index);
+
                     self.blit_anti_h_rp.run(
                         &rect,
                         pipeline::AAMaskCtx::default(),
                         mask_ctx,
-                        self.pixmap_src,
+                        pixmap_src,
                         self.pixmap,
                     );
                 }
@@ -360,11 +366,16 @@ impl Blitter for RasterPipelineBlitter<'_, '_> {
 
         let mask_ctx = self.mask.map(|c| c.mask_ctx()).unwrap_or_default();
 
+        let mipmap_index = self
+            .mipmaps
+            .build(self.blit_rect_rp.ctx.required_mipmap_levels);
+        let pixmap_src = self.mipmaps.get(mipmap_index);
+
         self.blit_rect_rp.run(
             rect,
             pipeline::AAMaskCtx::default(),
             mask_ctx,
-            self.pixmap_src,
+            pixmap_src,
             self.pixmap,
         );
     }
@@ -378,7 +389,12 @@ impl Blitter for RasterPipelineBlitter<'_, '_> {
 
         let mask_ctx = self.mask.map(|c| c.mask_ctx()).unwrap_or_default();
 
+        let mipmap_index = self
+            .mipmaps
+            .build(self.blit_mask_rp.ctx.required_mipmap_levels);
+        let pixmap_src = self.mipmaps.get(mipmap_index);
+
         self.blit_mask_rp
-            .run(clip, aa_mask_ctx, mask_ctx, self.pixmap_src, self.pixmap);
+            .run(clip, aa_mask_ctx, mask_ctx, pixmap_src, self.pixmap);
     }
 }
