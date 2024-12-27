@@ -163,6 +163,26 @@ impl Size {
         size_scale_f64(*self, to, true)
     }
 
+    /// Scales current size by the specified factor.
+    #[inline]
+    pub fn scale_by(&self, factor: f32) -> Option<Self> {
+        Self::from_wh(self.width() * factor, self.height() * factor)
+    }
+
+    /// Scales current size to the specified width.
+    #[inline]
+    pub fn scale_to_width(&self, new_width: f32) -> Option<Self> {
+        let new_height = new_width * self.height() / self.width();
+        Self::from_wh(new_width, new_height)
+    }
+
+    /// Scales current size to the specified height.
+    #[inline]
+    pub fn scale_to_height(&self, new_height: f32) -> Option<Self> {
+        let new_width = new_height * self.width() / self.height();
+        Self::from_wh(new_width, new_height)
+    }
+
     /// Converts into [`IntSize`].
     pub fn to_int_size(&self) -> IntSize {
         IntSize::from_wh(
