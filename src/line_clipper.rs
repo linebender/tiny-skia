@@ -249,7 +249,7 @@ pub fn intersect(src: &[Point; 2], clip: &Rect, dst: &mut [Point; 2]) -> bool {
         }
 
         // check for no overlap, and only permit coincident edges if the line
-        // and the edge are colinear
+        // and the edge are collinear
         if nested_lt(bounds.right(), clip.left(), bounds.width())
             || nested_lt(clip.right(), bounds.left(), bounds.width())
             || nested_lt(bounds.bottom(), clip.top(), bounds.height())
