@@ -316,6 +316,11 @@ impl<'a> PixmapRef<'a> {
         }
     }
 
+    /// Reborrows the current container
+    pub fn as_ref(&self) -> Self {
+        *self
+    }
+
     /// Returns pixmap's width.
     #[inline]
     pub fn width(&self) -> u32 {
@@ -478,6 +483,14 @@ impl<'a> PixmapMut<'a> {
     /// Returns a container that references Pixmap's data.
     pub fn as_ref(&self) -> PixmapRef {
         PixmapRef {
+            data: self.data,
+            size: self.size,
+        }
+    }
+
+    /// Reborrows the current container
+    pub fn as_mut<'b: 'a>(&'b mut self) -> PixmapMut<'b> {
+        Self {
             data: self.data,
             size: self.size,
         }
