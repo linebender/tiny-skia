@@ -192,7 +192,10 @@ impl Mask {
         let output_buffer_size = reader
             .output_buffer_size()
             .ok_or(png::DecodingError::LimitsExceeded)?;
-        let mut img_data = vec![0; output_buffer_size];
+        let mut img_data = Vec::new();
+        img_data
+            .try_reserve_exact(output_buffer_size)
+            .map_err(|_| make_custom_png_error("failed to reserve output buffer"))?;
         let info = reader.next_frame(&mut img_data)?;
 
         if info.bit_depth != png::BitDepth::Eight {
