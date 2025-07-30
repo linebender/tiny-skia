@@ -260,6 +260,22 @@ impl Pixmap {
         self.data
     }
 
+    /// Consumes the pixmap and returns the internal data as demultiplied RGBA bytes.
+    ///
+    /// Byteorder: RGBA
+    pub fn take_demultiplied(mut self) -> Vec<u8> {
+        // Demultiply alpha.
+        //
+        // RasterPipeline is 15% faster here, but produces slightly different results
+        // due to rounding. So we stick with this method for now.
+        for pixel in self.pixels_mut() {
+            let c = pixel.demultiply();
+            *pixel =
+                PremultipliedColorU8::from_rgba_unchecked(c.red(), c.green(), c.blue(), c.alpha());
+        }
+        self.data
+    }
+
     /// Returns a copy of the pixmap that intersects the `rect`.
     ///
     /// Returns `None` when `Pixmap`'s rect doesn't contain `rect`.
@@ -394,17 +410,7 @@ impl<'a> PixmapRef<'a> {
         // Sadly, we have to copy the pixmap here, because of demultiplication.
         // Not sure how to avoid this.
         // TODO: remove allocation
-        let mut tmp_pixmap = self.to_owned();
-
-        // Demultiply alpha.
-        //
-        // RasterPipeline is 15% faster here, but produces slightly different results
-        // due to rounding. So we stick with this method for now.
-        for pixel in tmp_pixmap.pixels_mut() {
-            let c = pixel.demultiply();
-            *pixel =
-                PremultipliedColorU8::from_rgba_unchecked(c.red(), c.green(), c.blue(), c.alpha());
-        }
+        let demultiplied_data = self.to_owned().take_demultiplied();
 
         let mut data = Vec::new();
         {
@@ -412,7 +418,7 @@ impl<'a> PixmapRef<'a> {
             encoder.set_color(png::ColorType::Rgba);
             encoder.set_depth(png::BitDepth::Eight);
             let mut writer = encoder.write_header()?;
-            writer.write_image_data(&tmp_pixmap.data)?;
+            writer.write_image_data(&demultiplied_data)?;
         }
 
         Ok(data)
