@@ -57,7 +57,7 @@ jobs:
       run: cargo test
 
   wasm:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -90,7 +90,7 @@ jobs:
       run: cargo test --target wasm32-wasip1
 
   aarch64:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
     - name: Checkout
       uses: actions/checkout@v4
