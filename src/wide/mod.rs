@@ -29,6 +29,7 @@ pub use f32x4_t::f32x4;
 pub use f32x8_t::f32x8;
 pub use i32x4_t::i32x4;
 pub use i32x8_t::i32x8;
+#[allow(unused_imports)]
 pub use tiny_skia_path::f32x2;
 pub use u16x16_t::u16x16;
 pub use u32x4_t::u32x4;
