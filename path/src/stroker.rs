@@ -426,7 +426,7 @@ impl PathStroker {
         self.finish(last_segment_is_line)
     }
 
-    fn builders(&mut self) -> SwappableBuilders {
+    fn builders(&mut self) -> SwappableBuilders<'_> {
         SwappableBuilders {
             inner: &mut self.inner,
             outer: &mut self.outer,

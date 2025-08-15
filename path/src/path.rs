@@ -140,7 +140,7 @@ impl Path {
     }
 
     /// Returns an iterator over path's segments.
-    pub fn segments(&self) -> PathSegmentsIter {
+    pub fn segments(&self) -> PathSegmentsIter<'_> {
         PathSegmentsIter {
             path: self,
             verb_index: 0,
