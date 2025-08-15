@@ -241,7 +241,7 @@ fn combine_vertical(edge: &LineEdge, last: &mut LineEdge) -> Combine {
     Combine::No
 }
 
-pub fn edge_iter(path: &Path) -> PathEdgeIter {
+pub fn edge_iter(path: &Path) -> PathEdgeIter<'_> {
     PathEdgeIter {
         path,
         verb_index: 0,
