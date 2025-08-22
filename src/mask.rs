@@ -132,6 +132,11 @@ impl Mask {
         self.data.as_mut_slice()
     }
 
+    /// Consumes the mask and returns its owned internal data.
+    pub fn into_data(self) -> Vec<u8> {
+        self.data
+    }
+
     pub(crate) fn as_submask(&self) -> SubMaskRef<'_> {
         SubMaskRef {
             size: self.size,
