@@ -133,7 +133,7 @@ impl Mask {
     }
 
     /// Consumes the mask and returns its owned internal data.
-    pub fn into_data(self) -> Vec<u8> {
+    pub fn take(self) -> Vec<u8> {
         self.data
     }
 
