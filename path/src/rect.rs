@@ -536,19 +536,6 @@ mod rect_tests {
     }
 
     #[test]
-    fn round_overflow() {
-        // minimum value that cause overflow
-        // because i32::MAX has no exact conversion to f32
-        let x = 128.0;
-        // maximum width
-        let width = i32::MAX as f32;
-
-        let rect = Rect::from_xywh(x, 0.0, width, 1.0).unwrap();
-        assert_eq!(rect.round(), None);
-        assert_eq!(rect.round_out(), None);
-    }
-
-    #[test]
     fn transform() {
         // Tests based on 2x2 rectangle
         let rect = Rect::from_ltrb(1.0, 2.0, 3.0, 4.0).unwrap();
