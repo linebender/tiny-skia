@@ -235,6 +235,24 @@ impl Pixmap {
         self.data.as_mut_slice()
     }
 
+    /// Returns a pixel color.
+    ///
+    /// Returns `None` when position is out of bounds.
+    pub fn pixel(&self, x: u32, y: u32) -> Option<PremultipliedColorU8> {
+        let idx = self.width().checked_mul(y)?.checked_add(x)?;
+        self.pixels().get(idx as usize).cloned()
+    }
+
+    /// Returns a mutable slice of pixels.
+    pub fn pixels_mut(&mut self) -> &mut [PremultipliedColorU8] {
+        bytemuck::cast_slice_mut(self.data_mut())
+    }
+
+    /// Returns a slice of pixels.
+    pub fn pixels(&self) -> &[PremultipliedColorU8] {
+        bytemuck::cast_slice(self.data())
+    }
+
     /// Consumes the internal data.
     ///
     /// Byteorder: RGBA
@@ -256,24 +274,6 @@ impl Pixmap {
                 PremultipliedColorU8::from_rgba_unchecked(c.red(), c.green(), c.blue(), c.alpha());
         }
         self.data
-    }
-
-    /// Returns a pixel color.
-    ///
-    /// Returns `None` when position is out of bounds.
-    pub fn pixel(&self, x: u32, y: u32) -> Option<PremultipliedColorU8> {
-        let idx = self.width().checked_mul(y)?.checked_add(x)?;
-        self.pixels().get(idx as usize).cloned()
-    }
-
-    /// Returns a mutable slice of pixels.
-    pub fn pixels_mut(&mut self) -> &mut [PremultipliedColorU8] {
-        bytemuck::cast_slice_mut(self.data_mut())
-    }
-
-    /// Returns a slice of pixels.
-    pub fn pixels(&self) -> &[PremultipliedColorU8] {
-        bytemuck::cast_slice(self.data())
     }
 
     /// Returns a copy of the pixmap that intersects the `rect`.
