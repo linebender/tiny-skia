@@ -235,13 +235,6 @@ impl Pixmap {
         self.data.as_mut_slice()
     }
 
-    /// Consumes the pixmap and returns its owned internal data.
-    ///
-    /// Byteorder: RGBA
-    pub fn into_data(self) -> Vec<u8> {
-        self.data
-    }
-
     /// Returns a pixel color.
     ///
     /// Returns `None` when position is out of bounds.
