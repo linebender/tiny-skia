@@ -311,11 +311,15 @@ impl Rect {
     ///
     /// Width and height are guarantee to be >= 1.
     pub fn round(&self) -> Option<IntRect> {
+        let left = i32::saturate_round(self.left());
+        let top = i32::saturate_round(self.top());
+        let right = i32::saturate_round(self.right());
+        let bottom = i32::saturate_round(self.bottom());
         IntRect::from_xywh(
-            i32::saturate_round(self.x()),
-            i32::saturate_round(self.y()),
-            core::cmp::max(1, i32::saturate_round(self.width()) as u32),
-            core::cmp::max(1, i32::saturate_round(self.height()) as u32),
+            left,
+            top,
+            core::cmp::max(1, right.saturating_sub(left)) as u32,
+            core::cmp::max(1, bottom.saturating_sub(top)) as u32,
         )
     }
 
@@ -323,11 +327,15 @@ impl Rect {
     ///
     /// Width and height are guarantee to be >= 1.
     pub fn round_out(&self) -> Option<IntRect> {
+        let left = i32::saturate_floor(self.left());
+        let top = i32::saturate_floor(self.top());
+        let right = i32::saturate_ceil(self.right());
+        let bottom = i32::saturate_ceil(self.bottom());
         IntRect::from_xywh(
-            i32::saturate_floor(self.x()),
-            i32::saturate_floor(self.y()),
-            core::cmp::max(1, i32::saturate_ceil(self.width()) as u32),
-            core::cmp::max(1, i32::saturate_ceil(self.height()) as u32),
+            left,
+            top,
+            core::cmp::max(1, right.saturating_sub(left)) as u32,
+            core::cmp::max(1, bottom.saturating_sub(top)) as u32,
         )
     }
 
