@@ -188,6 +188,16 @@ fn tiny_float_rect_aa() {
 }
 
 #[test]
+fn tiny_rect_aa() {
+    let mut paint = Paint::default();
+    paint.set_color_rgba8(0, 0, 0, 0);
+    paint.anti_alias = true;
+    let rect = Rect::from_xywh(0.7, 0.0, 1.0, 2.0).unwrap();
+    let mut pixmap = Pixmap::new(10, 10).unwrap();
+    pixmap.fill_rect(rect, &paint, Transform::identity(), None);
+}
+
+#[test]
 fn float_rect_clip_top_left_aa() {
     let mut paint = Paint::default();
     paint.set_color_rgba8(50, 127, 150, 200);
