@@ -186,10 +186,13 @@ impl Mask {
             std::io::Error::new(std::io::ErrorKind::Other, msg).into()
         }
 
-        let mut decoder = png::Decoder::new(data);
+        let mut decoder = png::Decoder::new(std::io::BufReader::new(std::io::Cursor::new(data)));
         decoder.set_transformations(png::Transformations::normalize_to_color8());
         let mut reader = decoder.read_info()?;
-        let mut img_data = vec![0; reader.output_buffer_size()];
+        let output_buffer_size = reader
+            .output_buffer_size()
+            .ok_or(png::DecodingError::LimitsExceeded)?;
+        let mut img_data = vec![0; output_buffer_size];
         let info = reader.next_frame(&mut img_data)?;
 
         if info.bit_depth != png::BitDepth::Eight {

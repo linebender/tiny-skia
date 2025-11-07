@@ -20,7 +20,7 @@ arrayvec = { version = "0.7", default-features = false }
 bytemuck = { version = "1.12", features = ["aarch64_simd"] }
 cfg-if = "1"
 log = "0.4"
-png = { version = "0.17", optional = true }
+png = { version = "0.18", optional = true }
 tiny-skia-path = { version = "0.11.4", path = "path", default-features = false }
 
 [features]
