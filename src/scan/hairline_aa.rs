@@ -120,8 +120,6 @@ fn fill_dot8(l: FDot8, t: FDot8, r: FDot8, b: FDot8, fill_inner: bool, blitter: 
                     } else {
                         debug_assert!(false);
                     }
-                } else {
-                    debug_assert!(false);
                 }
             }
 
