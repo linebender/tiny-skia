@@ -127,9 +127,16 @@ pub enum Stage {
     XYToRadius,
     XYTo2PtConicalFocalOnCircle,
     XYTo2PtConicalWellBehaved,
+    XYTo2PtConicalSmaller,
     XYTo2PtConicalGreater,
+    XYTo2PtConicalStrip,
+    Mask2PtConicalNan,
     Mask2PtConicalDegenerates,
     ApplyVectorMask,
+    Alter2PtConicalCompensateFocal,
+    Alter2PtConicalUnswap,
+    NegateX,
+    ApplyConcentricScaleBias,
     GammaExpand2,
     GammaExpandDestination2,
     GammaCompress2,
@@ -327,6 +334,7 @@ pub struct TwoPointConicalGradientCtx {
     // This context is used only in highp, where we use Tx4.
     pub mask: u32x8,
     pub p0: f32,
+    pub p1: f32,
 }
 
 #[derive(Copy, Clone, Default, Debug)]

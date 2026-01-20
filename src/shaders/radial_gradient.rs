@@ -144,6 +144,7 @@ impl RadialGradient {
         p.ctx.two_point_conical_gradient = pipeline::TwoPointConicalGradientCtx {
             mask: u32x8::default(),
             p0,
+            p1: 0.0, /*unused*/
         };
 
         self.base.push_stages(

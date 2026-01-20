@@ -62,8 +62,8 @@ pub use color::{ALPHA_OPAQUE, ALPHA_TRANSPARENT, ALPHA_U8_OPAQUE, ALPHA_U8_TRANS
 pub use mask::{Mask, MaskType};
 pub use painter::{FillRule, Paint};
 pub use pixmap::{Pixmap, PixmapMut, PixmapRef, BYTES_PER_PIXEL};
+pub use shaders::{ConicalGradient, LinearGradient, Pattern, RadialGradient, Shader};
 pub use shaders::{FilterQuality, GradientStop, PixmapPaint, SpreadMode};
-pub use shaders::{LinearGradient, Pattern, RadialGradient, Shader};
 
 pub use tiny_skia_path::{IntRect, IntSize, NonZeroRect, Point, Rect, Size, Transform};
 pub use tiny_skia_path::{LineCap, LineJoin, Stroke, StrokeDash};
