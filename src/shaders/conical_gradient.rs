@@ -36,7 +36,7 @@ impl FocalData {
         if (self.focal_x - 1.0).is_nearly_zero() {
             // swap r0, r1
             *matrix = matrix.post_translate(-1.0, 0.0).post_scale(-1.0, 1.0);
-            std::mem::swap(&mut r0, &mut r1);
+            core::mem::swap(&mut r0, &mut r1);
 
             self.focal_x = 0.0; // because r0 is now 0
             self.is_swapped = true;
