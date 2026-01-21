@@ -52,8 +52,6 @@ pub enum Shader<'a> {
     SolidColor(Color),
     /// A linear gradient shader.
     LinearGradient(LinearGradient),
-    /// A radial gradient shader.
-    RadialGradient(RadialGradient),
     /// A conical gradient shader.
     ConicalGradient(ConicalGradient),
     /// A pattern shader.
@@ -66,7 +64,6 @@ impl Shader<'_> {
         match self {
             Shader::SolidColor(ref c) => c.is_opaque(),
             Shader::LinearGradient(ref g) => g.is_opaque(),
-            Shader::RadialGradient(_) => false,
             Shader::ConicalGradient(_) => false,
             Shader::Pattern(_) => false,
         }
@@ -84,7 +81,6 @@ impl Shader<'_> {
                 true
             }
             Shader::LinearGradient(ref g) => g.push_stages(cs, p),
-            Shader::RadialGradient(ref g) => g.push_stages(cs, p),
             Shader::ConicalGradient(ref g) => g.push_stages(cs, p),
             Shader::Pattern(ref patt) => patt.push_stages(cs, p),
         }
@@ -95,9 +91,6 @@ impl Shader<'_> {
         match self {
             Shader::SolidColor(_) => {}
             Shader::LinearGradient(g) => {
-                g.base.transform = g.base.transform.post_concat(ts);
-            }
-            Shader::RadialGradient(g) => {
                 g.base.transform = g.base.transform.post_concat(ts);
             }
             Shader::ConicalGradient(g) => {
@@ -128,9 +121,6 @@ impl Shader<'_> {
                 c.apply_opacity(opacity);
             }
             Shader::LinearGradient(g) => {
-                g.base.apply_opacity(opacity);
-            }
-            Shader::RadialGradient(g) => {
                 g.base.apply_opacity(opacity);
             }
             Shader::ConicalGradient(g) => {

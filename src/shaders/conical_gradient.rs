@@ -4,6 +4,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+
 use alloc::vec;
 use alloc::vec::Vec;
 
@@ -15,7 +16,6 @@ use super::gradient::{Gradient, DEGENERATE_THRESHOLD};
 use crate::pipeline;
 use crate::pipeline::RasterPipelineBuilder;
 use crate::wide::u32x8;
-use crate::RadialGradient;
 
 #[cfg(all(not(feature = "std"), feature = "no-std-float"))]
 use tiny_skia_path::NoStdFloat;
@@ -144,7 +144,7 @@ impl ConicalGradient {
                         GradientStop::new(1.0, front.color),
                         GradientStop::new(1.0, back.color),
                     ];
-                    return RadialGradient::new(
+                    return ConicalGradient::new_radial(
                         start_point,
                         end_point,
                         end_radius,
@@ -158,7 +158,7 @@ impl ConicalGradient {
             }
 
             if start_radius.is_nearly_zero_within_tolerance(DEGENERATE_THRESHOLD) {
-                return RadialGradient::new(
+                return ConicalGradient::new_radial(
                     start_point,
                     end_point,
                     end_radius,
@@ -180,15 +180,95 @@ impl ConicalGradient {
         )
     }
 
+    /// Creates a new radial gradient shader.
+    ///
+    /// Returns `Shader::SolidColor` when:
+    /// - `stops.len()` == 1
+    ///
+    /// Returns `None` when:
+    ///
+    /// - `stops` is empty
+    /// - `radius` <= 0
+    /// - `transform` is not invertible
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new_radial(
+        start: Point,
+        end: Point,
+        radius: f32,
+        stops: Vec<GradientStop>,
+        mode: SpreadMode,
+        transform: Transform,
+    ) -> Option<Shader<'static>> {
+        let length = (end - start).length();
+        if !length.is_finite() {
+            return None;
+        }
+
+        if length.is_nearly_zero_within_tolerance(DEGENERATE_THRESHOLD) {
+            // If the center positions are the same, then the gradient
+            // is the radial variant of a 2 pt conical gradient,
+            // an actual radial gradient (startRadius == 0),
+            // or it is fully degenerate (startRadius == endRadius).
+
+            let inv = radius.invert();
+            let mut ts = Transform::from_translate(-start.x, -start.y);
+            ts = ts.post_scale(inv, inv);
+
+            // We can treat this gradient as radial, which is faster. If we got here, we know
+            // that endRadius is not equal to 0, so this produces a meaningful gradient
+            Some(Shader::ConicalGradient(ConicalGradient {
+                base: Gradient::new(stops, mode, transform, ts),
+                center1: start,
+                center2: end,
+                radius1: 0.0,
+                radius2: radius,
+                gradient_type: GradientType::Radial,
+            }))
+        } else {
+            // From SkTwoPointConicalGradient::Create
+            let mut ts = ts_from_poly_to_poly(
+                start,
+                end,
+                Point::from_xy(0.0, 0.0),
+                Point::from_xy(1.0, 0.0),
+            )?;
+
+            let d_center = (start - end).length();
+            let r1 = radius / d_center;
+            let focal_data = FocalData { r1, focal_x: 0.0, is_swapped: false };
+
+            // The following transformations are just to accelerate the shader computation by saving
+            // some arithmetic operations.
+            if focal_data.is_focal_on_circle() {
+                ts = ts.post_scale(0.5, 0.5);
+            } else {
+                ts = ts.post_scale(r1 / (r1 * r1 - 1.0), 1.0 / ((r1 * r1 - 1.0).abs()).sqrt());
+            }
+
+            Some(Shader::ConicalGradient(ConicalGradient {
+                base: Gradient::new(stops, mode, transform, ts),
+                center1: start,
+                center2: end,
+                radius1: 0.0,
+                radius2: radius,
+                gradient_type: GradientType::Focal(focal_data),
+            }))
+        }
+    }
+
     // From: https://source.chromium.org/chromium/chromium/src/+/main:third_party/skia/src/shaders/gradients/SkConicalGradient.cpp;l=194;drc=075316994c97ee86961b369bb2bff246aaa9d6c4
     pub(crate) fn push_stages(&self, cs: ColorSpace, p: &mut RasterPipelineBuilder) -> bool {
         let (p0, p1) = match self.gradient_type {
             GradientType::Radial => {
-                let d_radius = self.radius2 - self.radius1;
-                // For concentric gradients: t = t * scale + bias
-                let p0 = self.radius1.max(self.radius2) / d_radius;
-                let p1 = -self.radius1 / d_radius;
-                (p0, p1)
+                if self.radius1 == 0.0 {
+                    (1.0, 0.0)
+                } else {
+                    let d_radius = self.radius2 - self.radius1;
+                    // For concentric gradients: t = t * scale + bias
+                    let p0 = self.radius1.max(self.radius2) / d_radius;
+                    let p1 = -self.radius1 / d_radius;
+                    (p0, p1)
+                }
             }
             GradientType::Strip => {
                 let scaled_r0 = self.radius1 / (self.center1 - self.center2).length();
@@ -210,9 +290,11 @@ impl ConicalGradient {
                 match self.gradient_type {
                     GradientType::Radial => {
                         p.push(pipeline::Stage::XYToRadius);
-                        // Apply scale/bias to map t from [0, 1] based on r_max to
-                        // proper t where t=0 at r0 and t=1 at r1
-                        p.push(pipeline::Stage::ApplyConcentricScaleBias);
+                        // Apply scale/bias to map t from [0, 1] based on r_max to proper t where
+                        // t=0 at r0 and t=1 at r1
+                        if (p0, p1) != (1.0, 0.0) {
+                            p.push(pipeline::Stage::ApplyConcentricScaleBias);
+                        }
                     }
                     GradientType::Strip => {
                         p.push(pipeline::Stage::XYTo2PtConicalStrip);
