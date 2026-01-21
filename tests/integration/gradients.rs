@@ -260,6 +260,7 @@ fn well_behaved_radial() {
     paint.anti_alias = false;
     paint.shader = RadialGradient::new(
         Point::from_xy(100.0, 100.0),
+        0.0,
         Point::from_xy(120.0, 80.0),
         100.0,
         vec![
@@ -285,6 +286,7 @@ fn focal_on_circle_radial() {
     paint.anti_alias = false;
     paint.shader = RadialGradient::new(
         Point::from_xy(100.0, 100.0),
+        0.0,
         Point::from_xy(120.0, 80.0),
         28.29, // This radius forces the required pipeline stage.
         vec![
@@ -310,6 +312,7 @@ fn conical_greater_radial() {
     paint.anti_alias = false;
     paint.shader = RadialGradient::new(
         Point::from_xy(100.0, 100.0),
+        0.0,
         Point::from_xy(120.0, 80.0),
         10.0, // This radius forces the required pipeline stage.
         vec![
@@ -335,6 +338,7 @@ fn simple_radial_lq() {
     paint.anti_alias = false;
     paint.shader = RadialGradient::new(
         Point::from_xy(100.0, 100.0),
+        0.0,
         Point::from_xy(100.0, 100.0),
         100.0,
         vec![
@@ -361,6 +365,7 @@ fn simple_radial_hq() {
     paint.anti_alias = false;
     paint.shader = RadialGradient::new(
         Point::from_xy(100.0, 100.0),
+        0.0,
         Point::from_xy(100.0, 100.0),
         100.0,
         vec![
@@ -387,6 +392,7 @@ fn simple_radial_with_ts_hq() {
     paint.anti_alias = false;
     paint.shader = RadialGradient::new(
         Point::from_xy(100.0, 100.0),
+        0.0,
         Point::from_xy(100.0, 100.0),
         100.0,
         vec![
@@ -414,6 +420,7 @@ fn global_opacity() {
     paint.anti_alias = false;
     paint.shader = RadialGradient::new(
         Point::from_xy(100.0, 100.0),
+        0.0,
         Point::from_xy(100.0, 100.0),
         100.0,
         vec![

@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 ### Added
-- 2-point conical gradient support (`ConicalGradient`).
+- 2-point conical gradient support for (`RadialGradient`).
 
 
 ## [0.11.4] - 2024-02-04
