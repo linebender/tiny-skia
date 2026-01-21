@@ -4,8 +4,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-
-use alloc::vec;
 use alloc::vec::Vec;
 
 use tiny_skia_path::Scalar;
@@ -128,6 +126,9 @@ impl RadialGradient {
         }
 
         let length = (start_point - end_point).length();
+        if !length.is_finite() {
+            return None;
+        }
         if length.is_nearly_zero_within_tolerance(DEGENERATE_THRESHOLD) {
             if start_radius.is_nearly_equal_within_tolerance(end_radius, DEGENERATE_THRESHOLD) {
                 // Degenerate case, where the interpolation region area approaches zero. The proper
@@ -137,20 +138,31 @@ impl RadialGradient {
                     // The interpolation region becomes an infinitely thin ring at the radius, so the
                     // final gradient will be the first color repeated from p=0 to 1, and then a hard
                     // stop switching to the last color at p=1.
-                    let front = stops.first()?;
-                    let back = stops.last()?;
-                    let new_stops = vec![
+                    let front = stops.first()?.clone();
+                    let back = stops.last()?.clone();
+                    let mut new_stops = stops; // Reuse allocation from stops.
+                    new_stops.clear();
+                    new_stops.extend_from_slice(&[
                         GradientStop::new(0.0, front.color),
                         GradientStop::new(1.0, front.color),
                         GradientStop::new(1.0, back.color),
-                    ];
-                    return RadialGradient::new_radial(
+                    ]);
+                    // If the center positions are the same, then the gradient is the radial variant
+                    // of a 2 pt conical gradient, an actual radial gradient (startRadius == 0), or
+                    // it is fully degenerate (startRadius == endRadius).
+                    let inv = end_radius.invert();
+                    let ts = Transform::from_translate(-start_point.x, -start_point.y)
+                        .post_scale(inv, inv);
+                    // We can treat this gradient as a simple radial, which is faster. If we got
+                    // here, we know that endRadius is not equal to 0, so this produces a meaningful
+                    // gradient
+                    return Self::new_radial_unchecked(
                         start_point,
-                        end_point,
                         end_radius,
                         new_stops,
                         mode,
                         transform,
+                        ts,
                     );
                 }
                 // TODO: Consider making a degenerate gradient
@@ -158,13 +170,23 @@ impl RadialGradient {
             }
 
             if start_radius.is_nearly_zero_within_tolerance(DEGENERATE_THRESHOLD) {
-                return RadialGradient::new_radial(
+                // If the center positions are the same, then the gradient
+                // is the radial variant of a 2 pt conical gradient,
+                // an actual radial gradient (startRadius == 0),
+                // or it is fully degenerate (startRadius == endRadius).
+                let inv = end_radius.invert();
+                let ts =
+                    Transform::from_translate(-start_point.x, -start_point.y).post_scale(inv, inv);
+
+                // We can treat this gradient as a simple radial, which is faster. If we got here,
+                // we know that endRadius is not equal to 0, so this produces a meaningful gradient.
+                return Self::new_radial_unchecked(
                     start_point,
-                    end_point,
                     end_radius,
                     stops,
                     mode,
                     transform,
+                    ts,
                 );
             }
         }
@@ -180,70 +202,23 @@ impl RadialGradient {
         )
     }
 
-    /// Creates a new radial gradient with start_radius 0.
-    fn new_radial(
-        start: Point,
-        end: Point,
+    /// Create a simple radial shader.
+    fn new_radial_unchecked(
+        point: Point,
         radius: f32,
         stops: Vec<GradientStop>,
         mode: SpreadMode,
         transform: Transform,
+        points_to_unit: Transform,
     ) -> Option<Shader<'static>> {
-        let length = (end - start).length();
-        if !length.is_finite() {
-            return None;
-        }
-
-        if length.is_nearly_zero_within_tolerance(DEGENERATE_THRESHOLD) {
-            // If the center positions are the same, then the gradient
-            // is the radial variant of a 2 pt conical gradient,
-            // an actual radial gradient (startRadius == 0),
-            // or it is fully degenerate (startRadius == endRadius).
-
-            let inv = radius.invert();
-            let mut ts = Transform::from_translate(-start.x, -start.y);
-            ts = ts.post_scale(inv, inv);
-
-            // We can treat this gradient as radial, which is faster. If we got here, we know
-            // that endRadius is not equal to 0, so this produces a meaningful gradient
-            Some(Shader::RadialGradient(RadialGradient {
-                base: Gradient::new(stops, mode, transform, ts),
-                center1: start,
-                center2: end,
-                radius1: 0.0,
-                radius2: radius,
-                gradient_type: GradientType::Radial,
-            }))
-        } else {
-            // From SkTwoPointConicalGradient::Create
-            let mut ts = ts_from_poly_to_poly(
-                start,
-                end,
-                Point::from_xy(0.0, 0.0),
-                Point::from_xy(1.0, 0.0),
-            )?;
-
-            let d_center = (start - end).length();
-            let r1 = radius / d_center;
-            let focal_data = FocalData { r1, focal_x: 0.0, is_swapped: false };
-
-            // The following transformations are just to accelerate the shader computation by saving
-            // some arithmetic operations.
-            if focal_data.is_focal_on_circle() {
-                ts = ts.post_scale(0.5, 0.5);
-            } else {
-                ts = ts.post_scale(r1 / (r1 * r1 - 1.0), 1.0 / ((r1 * r1 - 1.0).abs()).sqrt());
-            }
-
-            Some(Shader::RadialGradient(RadialGradient {
-                base: Gradient::new(stops, mode, transform, ts),
-                center1: start,
-                center2: end,
-                radius1: 0.0,
-                radius2: radius,
-                gradient_type: GradientType::Focal(focal_data),
-            }))
-        }
+        Some(Shader::RadialGradient(RadialGradient {
+            base: Gradient::new(stops, mode, transform, points_to_unit),
+            center1: point,
+            center2: point,
+            radius1: 0.0,
+            radius2: radius,
+            gradient_type: GradientType::Radial,
+        }))
     }
 
     // From: https://source.chromium.org/chromium/chromium/src/+/main:third_party/skia/src/shaders/gradients/SkConicalGradient.cpp;l=194;drc=075316994c97ee86961b369bb2bff246aaa9d6c4
