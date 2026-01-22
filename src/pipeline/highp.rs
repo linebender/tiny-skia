@@ -1024,7 +1024,6 @@ fn xy_to_2pt_conical_greater(p: &mut Pipeline) {
     p.next_stage();
 }
 
-// From: https://source.chromium.org/chromium/chromium/src/+/main:third_party/skia/src/opts/SkRasterPipeline_opts.h;l=3625;drc=d5c02fd369596fb4a6fa563f5506ff71ff7299ed
 fn xy_to_2pt_conical_smaller(p: &mut Pipeline) {
     let ctx = &p.ctx.two_point_conical_gradient;
 
@@ -1035,7 +1034,6 @@ fn xy_to_2pt_conical_smaller(p: &mut Pipeline) {
     p.next_stage();
 }
 
-// From: https://source.chromium.org/chromium/chromium/src/+/main:third_party/skia/src/opts/SkRasterPipeline_opts.h;l=3605;drc=d5c02fd369596fb4a6fa563f5506ff71ff7299ed
 fn xy_to_2pt_conical_strip(p: &mut Pipeline) {
     let ctx = &p.ctx.two_point_conical_gradient;
 
@@ -1045,7 +1043,6 @@ fn xy_to_2pt_conical_strip(p: &mut Pipeline) {
 
     p.next_stage();
 }
-
 
 #[inline]
 fn mask_2pt_conical_from_degenerate(is_degenerate: f32x8) -> u32x8 {
@@ -1063,8 +1060,6 @@ fn mask_2pt_conical_from_degenerate(is_degenerate: f32x8) -> u32x8 {
     ])
 }
 
-
-// From: https://source.chromium.org/chromium/chromium/src/+/main:third_party/skia/src/opts/SkRasterPipeline_opts.h;l=3641;drc=d5c02fd369596fb4a6fa563f5506ff71ff7299ed
 fn mask_2pt_conical_nan(p: &mut Pipeline) {
     let ctx = &mut p.ctx.two_point_conical_gradient;
 
@@ -1098,7 +1093,6 @@ fn apply_vector_mask(p: &mut Pipeline) {
     p.next_stage();
 }
 
-// From: https://source.chromium.org/chromium/chromium/src/+/main:third_party/skia/src/opts/SkRasterPipeline_opts.h;l=3630;drc=d5c02fd369596fb4a6fa563f5506ff71ff7299ed
 fn alter_2pt_conical_compensate_focal(p: &mut Pipeline) {
     let ctx = &p.ctx.two_point_conical_gradient;
 
@@ -1107,14 +1101,12 @@ fn alter_2pt_conical_compensate_focal(p: &mut Pipeline) {
     p.next_stage();
 }
 
-// From: https://source.chromium.org/chromium/chromium/src/+/main:third_party/skia/src/opts/SkRasterPipeline_opts.h;l=3636;drc=d5c02fd369596fb4a6fa563f5506ff71ff7299ed
 fn alter_2pt_conical_unswap(p: &mut Pipeline) {
     p.r = f32x8::splat(1.0) - p.r;
 
     p.next_stage();
 }
 
-// From: https://source.chromium.org/chromium/chromium/src/+/main:third_party/skia/src/opts/SkRasterPipeline_opts.h;l=3603;drc=d5c02fd369596fb4a6fa563f5506ff71ff7299ed
 fn negate_x(p: &mut Pipeline) {
     p.r = -p.r;
 

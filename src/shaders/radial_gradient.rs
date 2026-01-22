@@ -26,7 +26,6 @@ struct FocalData {
 }
 
 impl FocalData {
-    // From: https://source.chromium.org/chromium/chromium/src/+/main:third_party/skia/src/shaders/gradients/SkConicalGradient.cpp;l=36;drc=075316994c97ee86961b369bb2bff246aaa9d6c4
     fn set(&mut self, mut r0: f32, mut r1: f32, matrix: &mut Transform) -> bool {
         self.is_swapped = false;
         self.focal_x = r0 / (r0 - r1);
@@ -101,8 +100,6 @@ pub struct RadialGradient {
 
 impl RadialGradient {
     /// Creates a new 2-point conical gradient shader.
-    ///
-    /// From: https://source.chromium.org/chromium/chromium/src/+/main:third_party/skia/src/shaders/gradients/SkConicalGradient.cpp;l=251;drc=075316994c97ee86961b369bb2bff246aaa9d6c4
     #[allow(clippy::new_ret_no_self)]
     pub fn new(
         start_point: Point,
@@ -221,7 +218,6 @@ impl RadialGradient {
         }))
     }
 
-    // From: https://source.chromium.org/chromium/chromium/src/+/main:third_party/skia/src/shaders/gradients/SkConicalGradient.cpp;l=194;drc=075316994c97ee86961b369bb2bff246aaa9d6c4
     pub(crate) fn push_stages(&self, cs: ColorSpace, p: &mut RasterPipelineBuilder) -> bool {
         let (p0, p1) = match self.gradient_type {
             GradientType::Radial => {
@@ -305,7 +301,6 @@ impl RadialGradient {
     }
 }
 
-// https://source.chromium.org/chromium/chromium/src/+/main:third_party/skia/src/shaders/gradients/SkConicalGradient.cpp;l=76;drc=075316994c97ee86961b369bb2bff246aaa9d6c4
 fn create(
     c0: Point,
     r0: f32,
@@ -354,7 +349,6 @@ fn create(
     }))
 }
 
-// From: https://source.chromium.org/chromium/chromium/src/+/main:third_party/skia/src/shaders/gradients/SkConicalGradient.cpp;l=69;drc=075316994c97ee86961b369bb2bff246aaa9d6c4
 fn map_to_unit_x(origin: Point, x_is_one: Point) -> Option<Transform> {
     ts_from_poly_to_poly(
         origin,
