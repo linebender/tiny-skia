@@ -440,3 +440,88 @@ fn global_opacity() {
     let expected = Pixmap::load_png("tests/images/gradients/global-opacity.png").unwrap();
     assert_eq!(pixmap, expected);
 }
+
+#[test]
+fn strip_gradient() {
+    // Equal radii, different centers creates a Strip gradient
+    let mut paint = Paint::default();
+    paint.anti_alias = false;
+    paint.shader = RadialGradient::new(
+        Point::from_xy(50.0, 100.0),
+        50.0,
+        Point::from_xy(150.0, 100.0),
+        50.0,
+        vec![
+            GradientStop::new(0.0, Color::from_rgba8(50, 127, 150, 200)),
+            GradientStop::new(1.0, Color::from_rgba8(220, 140, 75, 180)),
+        ],
+        SpreadMode::Pad,
+        Transform::identity(),
+    ).unwrap();
+
+    let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
+
+    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+
+    let expected = Pixmap::load_png("tests/images/gradients/strip-gradient.png").unwrap();
+    assert_eq!(pixmap, expected);
+}
+
+#[test]
+fn concentric_radial() {
+    // Same center, non-zero start radius (concentric gradient)
+    let mut paint = Paint::default();
+    paint.anti_alias = false;
+    paint.shader = RadialGradient::new(
+        Point::from_xy(100.0, 100.0),
+        30.0,
+        Point::from_xy(100.0, 100.0),
+        90.0,
+        vec![
+            GradientStop::new(0.0, Color::from_rgba8(50, 127, 150, 200)),
+            GradientStop::new(1.0, Color::from_rgba8(220, 140, 75, 180)),
+        ],
+        SpreadMode::Pad,
+        Transform::identity(),
+    ).unwrap();
+
+    let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
+
+    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+
+    let expected = Pixmap::load_png("tests/images/gradients/concentric-radial.png").unwrap();
+    assert_eq!(pixmap, expected);
+}
+
+#[test]
+fn conical_smaller_radial() {
+    // Configuration that triggers XYTo2PtConicalSmaller stage
+    // r0=60, r1=30, distance=50
+    // r0_norm=1.2, r1_norm=0.6, focal_x = 1.2/0.6 = 2.0 > 1.0
+    // self.r1 = 0.6 / |1.0 - 2.0| = 0.6, so is_well_behaved() = false
+    // (1.0 - focal_x) < 0.0 is true, triggering XYTo2PtConicalSmaller
+    let mut paint = Paint::default();
+    paint.anti_alias = false;
+    paint.shader = RadialGradient::new(
+        Point::from_xy(100.0, 100.0),
+        60.0,
+        Point::from_xy(150.0, 100.0),
+        30.0,
+        vec![
+            GradientStop::new(0.0, Color::from_rgba8(50, 127, 150, 200)),
+            GradientStop::new(1.0, Color::from_rgba8(220, 140, 75, 180)),
+        ],
+        SpreadMode::Pad,
+        Transform::identity(),
+    ).unwrap();
+
+    let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
+
+    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+
+    let expected = Pixmap::load_png("tests/images/gradients/conical-smaller-radial.png").unwrap();
+    assert_eq!(pixmap, expected);
+}
