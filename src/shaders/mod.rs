@@ -50,7 +50,7 @@ pub enum Shader<'a> {
     SolidColor(Color),
     /// A linear gradient shader.
     LinearGradient(LinearGradient),
-    /// A conical radial gradient shader.
+    /// A radial gradient shader.
     RadialGradient(RadialGradient),
     /// A pattern shader.
     Pattern(Pattern<'a>),

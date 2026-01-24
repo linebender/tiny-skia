@@ -82,8 +82,14 @@ impl FocalData {
 
 #[derive(Clone, PartialEq, Debug)]
 enum GradientType {
-    Radial,
-    Strip,
+    Radial {
+        radius1: f32,
+        radius2: f32,
+    },
+    Strip {
+        /// Radius of the first circle scaled by the distance between centers (r0 / d_center)
+        scaled_r0: f32,
+    },
     Focal(FocalData),
 }
 
@@ -91,15 +97,25 @@ enum GradientType {
 #[derive(Clone, PartialEq, Debug)]
 pub struct RadialGradient {
     pub(crate) base: Gradient,
-    center1: Point,
-    center2: Point,
-    radius1: f32,
-    radius2: f32,
     gradient_type: GradientType,
 }
 
 impl RadialGradient {
-    /// Creates a new 2-point conical gradient shader.
+    /// Creates a new two-point conical gradient shader.
+    ///
+    /// A two-point conical gradient (also known as a radial gradient)
+    /// interpolates colors between two circles defined by their center points
+    /// and radii.
+    ///
+    /// Returns `Shader::SolidColor` when:
+    /// - `stops.len()` == 1
+    ///
+    /// Returns `None` when:
+    /// - `stops` is empty
+    /// - `start_radius` < 0 or `end_radius` < 0
+    /// - `transform` is not invertible
+    /// - The gradient is degenerate (both radii and centers are equal, except
+    ///   in specific pad mode cases)
     #[allow(clippy::new_ret_no_self)]
     pub fn new(
         start_point: Point,
@@ -114,13 +130,13 @@ impl RadialGradient {
             return None;
         }
 
-        transform.invert()?;
-
         match stops.as_slice() {
             [] => return None,
             [stop] => return Some(Shader::SolidColor(stop.color)),
             _ => {}
         }
+
+        transform.invert()?;
 
         let length = (start_point - end_point).length();
         if !length.is_finite() {
@@ -135,21 +151,18 @@ impl RadialGradient {
                     // The interpolation region becomes an infinitely thin ring at the radius, so the
                     // final gradient will be the first color repeated from p=0 to 1, and then a hard
                     // stop switching to the last color at p=1.
-                    let front = stops.first()?.clone();
-                    let back = stops.last()?.clone();
+                    let start_color = stops.first()?.clone().color;
+                    let end_color = stops.last()?.clone().color;
                     let mut new_stops = stops; // Reuse allocation from stops.
                     new_stops.clear();
                     new_stops.extend_from_slice(&[
-                        GradientStop::new(0.0, front.color),
-                        GradientStop::new(1.0, front.color),
-                        GradientStop::new(1.0, back.color),
+                        GradientStop::new(0.0, start_color),
+                        GradientStop::new(1.0, start_color),
+                        GradientStop::new(1.0, end_color),
                     ]);
                     // If the center positions are the same, then the gradient is the radial variant
                     // of a 2 pt conical gradient, an actual radial gradient (startRadius == 0), or
                     // it is fully degenerate (startRadius == endRadius).
-                    let inv = end_radius.invert();
-                    let ts = Transform::from_translate(-start_point.x, -start_point.y)
-                        .post_scale(inv, inv);
                     // We can treat this gradient as a simple radial, which is faster. If we got
                     // here, we know that endRadius is not equal to 0, so this produces a meaningful
                     // gradient
@@ -159,7 +172,6 @@ impl RadialGradient {
                         new_stops,
                         mode,
                         transform,
-                        ts,
                     );
                 }
                 // TODO: Consider making a degenerate gradient
@@ -171,20 +183,9 @@ impl RadialGradient {
                 // is the radial variant of a 2 pt conical gradient,
                 // an actual radial gradient (startRadius == 0),
                 // or it is fully degenerate (startRadius == endRadius).
-                let inv = end_radius.invert();
-                let ts =
-                    Transform::from_translate(-start_point.x, -start_point.y).post_scale(inv, inv);
-
                 // We can treat this gradient as a simple radial, which is faster. If we got here,
                 // we know that endRadius is not equal to 0, so this produces a meaningful gradient.
-                return Self::new_radial_unchecked(
-                    start_point,
-                    end_radius,
-                    stops,
-                    mode,
-                    transform,
-                    ts,
-                );
+                return Self::new_radial_unchecked(start_point, end_radius, stops, mode, transform);
             }
         }
 
@@ -199,40 +200,51 @@ impl RadialGradient {
         )
     }
 
-    /// Create a simple radial shader.
+    /// Creates a simple radial gradient shader without validation.
+    ///
+    /// This is an optimized path for creating radial gradients when the start radius is 0
+    /// and the gradient is known to be valid. The function computes the points-to-unit
+    /// transformation internally based on the center point and radius.
+    ///
+    /// # Parameters
+    /// - `center`: The center point of the radial gradient
+    /// - `radius`: The radius of the gradient (assumed to be > 0)
+    /// - `stops`: Color stops for the gradient (assumed to have length >= 2)
+    /// - `mode`: How the gradient extends beyond its bounds
+    /// - `transform`: The gradient's transformation matrix (assumed to be invertible)
     fn new_radial_unchecked(
-        point: Point,
+        center: Point,
         radius: f32,
         stops: Vec<GradientStop>,
         mode: SpreadMode,
         transform: Transform,
-        points_to_unit: Transform,
     ) -> Option<Shader<'static>> {
+        let inv = radius.invert();
+        let points_to_unit = Transform::from_translate(-center.x, -center.y).post_scale(inv, inv);
+
         Some(Shader::RadialGradient(RadialGradient {
             base: Gradient::new(stops, mode, transform, points_to_unit),
-            center1: point,
-            center2: point,
-            radius1: 0.0,
-            radius2: radius,
-            gradient_type: GradientType::Radial,
+            gradient_type: GradientType::Radial {
+                radius1: 0.0,
+                radius2: radius,
+            },
         }))
     }
 
     pub(crate) fn push_stages(&self, cs: ColorSpace, p: &mut RasterPipelineBuilder) -> bool {
         let (p0, p1) = match self.gradient_type {
-            GradientType::Radial => {
-                if self.radius1 == 0.0 {
+            GradientType::Radial { radius1, radius2 } => {
+                if radius1 == 0.0 {
                     (1.0, 0.0)
                 } else {
-                    let d_radius = self.radius2 - self.radius1;
+                    let d_radius = radius2 - radius1;
                     // For concentric gradients: t = t * scale + bias
-                    let p0 = self.radius1.max(self.radius2) / d_radius;
-                    let p1 = -self.radius1 / d_radius;
+                    let p0 = radius1.max(radius2) / d_radius;
+                    let p1 = -radius1 / d_radius;
                     (p0, p1)
                 }
             }
-            GradientType::Strip => {
-                let scaled_r0 = self.radius1 / (self.center1 - self.center2).length();
+            GradientType::Strip { scaled_r0 } => {
                 (scaled_r0 * scaled_r0, 0.0 /*unused*/)
             }
             GradientType::Focal(fd) => (1.0 / fd.r1, fd.focal_x),
@@ -249,7 +261,7 @@ impl RadialGradient {
             cs,
             &|p| {
                 match self.gradient_type {
-                    GradientType::Radial => {
+                    GradientType::Radial { .. } => {
                         p.push(pipeline::Stage::XYToRadius);
                         // Apply scale/bias to map t from [0, 1] based on r_max to proper t where
                         // t=0 at r0 and t=1 at r1
@@ -257,7 +269,7 @@ impl RadialGradient {
                             p.push(pipeline::Stage::ApplyConcentricScaleBias);
                         }
                     }
-                    GradientType::Strip => {
+                    GradientType::Strip { .. } => {
                         p.push(pipeline::Stage::XYTo2PtConicalStrip);
                         p.push(pipeline::Stage::Mask2PtConicalNan);
                     }
@@ -291,7 +303,7 @@ impl RadialGradient {
                 }
             },
             &|p| match self.gradient_type {
-                GradientType::Strip => p.push(pipeline::Stage::ApplyVectorMask),
+                GradientType::Strip { .. } => p.push(pipeline::Stage::ApplyVectorMask),
                 GradientType::Focal(fd) if !fd.is_well_behaved() => {
                     p.push(pipeline::Stage::ApplyVectorMask)
                 }
@@ -323,11 +335,16 @@ fn create(
         // Concentric case: we can pretend we're radial (with a tiny twist).
         let scale = 1.0 / r0.max(r1);
         gradient_matrix = Transform::from_translate(-c1.x, -c1.y).post_scale(scale, scale);
-        gradient_type = GradientType::Radial;
+        gradient_type = GradientType::Radial {
+            radius1: r0,
+            radius2: r1,
+        };
     } else {
         gradient_matrix = map_to_unit_x(c0, c1)?;
+        let d_center = (c0 - c1).length();
         gradient_type = if (r0 - r1).is_nearly_zero() {
-            GradientType::Strip
+            let scaled_r0 = r0 / d_center;
+            GradientType::Strip { scaled_r0 }
         } else {
             GradientType::Focal(FocalData::default())
         };
@@ -341,10 +358,6 @@ fn create(
 
     Some(Shader::RadialGradient(RadialGradient {
         base: Gradient::new(stops, mode, transform, gradient_matrix),
-        center1: c0,
-        center2: c1,
-        radius1: r0,
-        radius2: r1,
         gradient_type,
     }))
 }
