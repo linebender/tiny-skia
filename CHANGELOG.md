@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### Added
 - 2-point conical gradient support for (`RadialGradient`).
   Thanks to [@wmedrano](https://github.com/wmedrano)
+- Sweep gradient support (`SweepGradient`).
+  Thanks to [@wmedrano](https://github.com/wmedrano)
 
 ### Changed
 - The `RadialGradient::new` requires a start radius now. Set the second argument
