@@ -1044,29 +1044,13 @@ fn xy_to_2pt_conical_strip(p: &mut Pipeline) {
     p.next_stage();
 }
 
-#[inline]
-fn mask_2pt_conical_from_degenerate(is_degenerate: f32x8) -> u32x8 {
-    let is_not_degenerate = !is_degenerate.to_u32x8_bitcast();
-    let is_not_degenerate: [u32; 8] = bytemuck::cast(is_not_degenerate);
-    bytemuck::cast([
-        if is_not_degenerate[0] != 0 { !0 } else { 0 },
-        if is_not_degenerate[1] != 0 { !0 } else { 0 },
-        if is_not_degenerate[2] != 0 { !0 } else { 0 },
-        if is_not_degenerate[3] != 0 { !0 } else { 0 },
-        if is_not_degenerate[4] != 0 { !0 } else { 0 },
-        if is_not_degenerate[5] != 0 { !0 } else { 0 },
-        if is_not_degenerate[6] != 0 { !0 } else { 0 },
-        if is_not_degenerate[7] != 0 { !0 } else { 0 },
-    ])
-}
-
 fn mask_2pt_conical_nan(p: &mut Pipeline) {
     let ctx = &mut p.ctx.two_point_conical_gradient;
 
     let t = p.r;
     let is_degenerate = t.cmp_ne(t);
     p.r = is_degenerate.blend(f32x8::default(), t);
-    ctx.mask = mask_2pt_conical_from_degenerate(is_degenerate);
+    ctx.mask = cond_to_mask(!is_degenerate.to_u32x8_bitcast());
 
     p.next_stage();
 }
@@ -1077,7 +1061,7 @@ fn mask_2pt_conical_degenerates(p: &mut Pipeline) {
     let t = p.r;
     let is_degenerate = t.cmp_le(f32x8::default()) | t.cmp_ne(t);
     p.r = is_degenerate.blend(f32x8::default(), t);
-    ctx.mask = mask_2pt_conical_from_degenerate(is_degenerate);
+    ctx.mask = cond_to_mask(!is_degenerate.to_u32x8_bitcast());
 
     p.next_stage();
 }
@@ -1211,6 +1195,21 @@ fn gamma_compress_srgb(p: &mut Pipeline) {
 
 pub fn just_return(_: &mut Pipeline) {
     // Ends the loop.
+}
+
+#[inline(always)]
+fn cond_to_mask(cond: u32x8) -> u32x8 {
+    let cond: [u32; 8] = bytemuck::cast(cond);
+    bytemuck::cast([
+        if cond[0] != 0 { !0 } else { 0 },
+        if cond[1] != 0 { !0 } else { 0 },
+        if cond[2] != 0 { !0 } else { 0 },
+        if cond[3] != 0 { !0 } else { 0 },
+        if cond[4] != 0 { !0 } else { 0 },
+        if cond[5] != 0 { !0 } else { 0 },
+        if cond[6] != 0 { !0 } else { 0 },
+        if cond[7] != 0 { !0 } else { 0 },
+    ])
 }
 
 #[inline(always)]
