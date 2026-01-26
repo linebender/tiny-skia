@@ -126,6 +126,7 @@ pub const STAGES: &[StageFn; super::STAGES_COUNT] = &[
     repeat_x1,
     gradient,
     evenly_spaced_2_stop_gradient,
+    null_fn, // XYToUnitAngle
     xy_to_radius,
     null_fn, // XYTo2PtConicalFocalOnCircle
     null_fn, // XYTo2PtConicalWellBehaved

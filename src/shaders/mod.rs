@@ -8,6 +8,7 @@ mod gradient;
 mod linear_gradient;
 mod pattern;
 mod radial_gradient;
+mod sweep_gradient;
 
 use tiny_skia_path::{NormalizedF32, Scalar};
 
@@ -15,6 +16,7 @@ pub use gradient::GradientStop;
 pub use linear_gradient::LinearGradient;
 pub use pattern::{FilterQuality, Pattern, PixmapPaint};
 pub use radial_gradient::RadialGradient;
+pub use sweep_gradient::SweepGradient;
 
 use crate::{Color, ColorSpace, Transform};
 
@@ -52,6 +54,8 @@ pub enum Shader<'a> {
     LinearGradient(LinearGradient),
     /// A radial gradient shader.
     RadialGradient(RadialGradient),
+    /// A sweep gradient shader.
+    SweepGradient(SweepGradient),
     /// A pattern shader.
     Pattern(Pattern<'a>),
 }
@@ -60,9 +64,12 @@ impl Shader<'_> {
     /// Checks if the shader is guaranteed to produce only opaque colors.
     pub fn is_opaque(&self) -> bool {
         match self {
-            Shader::SolidColor(ref c) => c.is_opaque(),
-            Shader::LinearGradient(ref g) => g.is_opaque(),
+            Shader::SolidColor(c) => c.is_opaque(),
+            Shader::LinearGradient(g) => g.is_opaque(),
+            // A radial gradient may have points that are "undefined" so we just assume that it is
+            // not opaque.
             Shader::RadialGradient(_) => false,
+            Shader::SweepGradient(g) => g.is_opaque(),
             Shader::Pattern(_) => false,
         }
     }
@@ -78,9 +85,10 @@ impl Shader<'_> {
                 p.push_uniform_color(color);
                 true
             }
-            Shader::LinearGradient(ref g) => g.push_stages(cs, p),
-            Shader::RadialGradient(ref g) => g.push_stages(cs, p),
-            Shader::Pattern(ref patt) => patt.push_stages(cs, p),
+            Shader::LinearGradient(g) => g.push_stages(cs, p),
+            Shader::RadialGradient(g) => g.push_stages(cs, p),
+            Shader::SweepGradient(g) => g.push_stages(cs, p),
+            Shader::Pattern(patt) => patt.push_stages(cs, p),
         }
     }
 
@@ -92,6 +100,9 @@ impl Shader<'_> {
                 g.base.transform = g.base.transform.post_concat(ts);
             }
             Shader::RadialGradient(g) => {
+                g.base.transform = g.base.transform.post_concat(ts);
+            }
+            Shader::SweepGradient(g) => {
                 g.base.transform = g.base.transform.post_concat(ts);
             }
             Shader::Pattern(p) => {
@@ -122,6 +133,9 @@ impl Shader<'_> {
                 g.base.apply_opacity(opacity);
             }
             Shader::RadialGradient(g) => {
+                g.base.apply_opacity(opacity);
+            }
+            Shader::SweepGradient(g) => {
                 g.base.apply_opacity(opacity);
             }
             Shader::Pattern(ref mut p) => {

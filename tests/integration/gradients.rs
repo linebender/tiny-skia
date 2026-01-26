@@ -525,3 +525,67 @@ fn conical_smaller_radial() {
     let expected = Pixmap::load_png("tests/images/gradients/conical-smaller-radial.png").unwrap();
     assert_eq!(pixmap, expected);
 }
+
+#[test]
+fn sweep_gradient() {
+    let mut paint = Paint::default();
+    paint.anti_alias = false;
+    paint.shader = SweepGradient::new(
+        Point::from_xy(100.0, 100.0),
+        135.0,
+        225.0,
+        vec![
+            GradientStop::new(0.0, Color::from_rgba8(50, 127, 150, 200)),
+            GradientStop::new(1.0, Color::from_rgba8(220, 140, 75, 180)),
+        ],
+        SpreadMode::Pad,
+        Transform::identity(),
+    )
+        .unwrap();
+
+    let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
+
+    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    pixmap.fill_path(
+        &path,
+        &paint,
+        FillRule::Winding,
+        Transform::identity(),
+        None,
+    );
+
+    let expected = Pixmap::load_png("tests/images/gradients/sweep-gradient.png").unwrap();
+    assert_eq!(pixmap, expected);
+}
+
+#[test]
+fn sweep_gradient_full() {
+    let mut paint = Paint::default();
+    paint.anti_alias = false;
+    paint.shader = SweepGradient::new(
+        Point::from_xy(100.0, 100.0),
+        0.0,
+        360.0,
+        vec![
+            GradientStop::new(0.0, Color::from_rgba8(50, 127, 150, 200)),
+            GradientStop::new(1.0, Color::from_rgba8(220, 140, 75, 180)),
+        ],
+        SpreadMode::Pad,
+        Transform::identity(),
+    )
+    .unwrap();
+
+    let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
+
+    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    pixmap.fill_path(
+        &path,
+        &paint,
+        FillRule::Winding,
+        Transform::identity(),
+        None,
+    );
+
+    let expected = Pixmap::load_png("tests/images/gradients/sweep-gradient-full.png").unwrap();
+    assert_eq!(pixmap, expected);
+}
