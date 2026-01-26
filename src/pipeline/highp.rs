@@ -1113,7 +1113,6 @@ fn negate_x(p: &mut Pipeline) {
     p.next_stage();
 }
 
-// Applies the matrix operation from: https://source.chromium.org/chromium/chromium/src/+/main:third_party/skia/src/shaders/gradients/SkConicalGradient.cpp;l=206;drc=075316994c97ee86961b369bb2bff246aaa9d6c4
 fn apply_concentric_scale_bias(p: &mut Pipeline) {
     let ctx = &p.ctx.two_point_conical_gradient;
 
