@@ -24,6 +24,7 @@ pub trait Scalar {
     fn invert(self) -> Self;
     fn bound(self, min: Self, max: Self) -> Self;
     fn is_nearly_equal(self, other: Self) -> bool;
+    fn is_nearly_equal_within_tolerance(self, other: Self, tolerance: Self) -> bool;
     fn is_nearly_zero(self) -> bool;
     fn is_nearly_zero_within_tolerance(self, tolerance: Self) -> bool;
     fn almost_dequal_ulps(self, other: Self) -> bool;
@@ -54,6 +55,10 @@ impl Scalar for f32 {
 
     fn is_nearly_equal(self, other: Self) -> bool {
         (self - other).abs() <= SCALAR_NEARLY_ZERO
+    }
+
+    fn is_nearly_equal_within_tolerance(self, other: Self, tolerance: Self) -> bool {
+        (self - other).abs() <= tolerance
     }
 
     fn is_nearly_zero(self) -> bool {

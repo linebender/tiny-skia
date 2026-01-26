@@ -129,9 +129,16 @@ pub const STAGES: &[StageFn; super::STAGES_COUNT] = &[
     xy_to_radius,
     null_fn, // XYTo2PtConicalFocalOnCircle
     null_fn, // XYTo2PtConicalWellBehaved
+    null_fn, // XYTo2PtConicalSmaller
     null_fn, // XYTo2PtConicalGreater
+    null_fn, // XYTo2PtConicalStrip
+    null_fn, // Mask2PtConicalNan
     null_fn, // Mask2PtConicalDegenerates
     null_fn, // ApplyVectorMask
+    null_fn, // Alter2PtConicalCompensateFocal
+    null_fn, // Alter2PtConicalUnswap
+    null_fn, // NegateX
+    null_fn, // ApplyConcentricScaleBias
     null_fn, // GammaExpand2
     null_fn, // GammaExpandDestination2
     null_fn, // GammaCompress2

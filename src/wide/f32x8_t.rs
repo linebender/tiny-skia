@@ -85,7 +85,9 @@ impl f32x8 {
     pub fn cmp_ne(self, rhs: Self) -> Self {
         cfg_if::cfg_if! {
             if #[cfg(all(feature = "simd", target_feature = "avx"))] {
-                Self(unsafe { _mm256_cmp_ps(self.0, rhs.0, _CMP_NEQ_OQ) })
+                // Use UQ (unordered quiet) to match SSE _mm_cmpneq_ps behavior,
+                // which returns true when either operand is NaN.
+                Self(unsafe { _mm256_cmp_ps(self.0, rhs.0, _CMP_NEQ_UQ) })
             } else {
                 Self(self.0.cmp_ne(rhs.0), self.1.cmp_ne(rhs.1))
             }

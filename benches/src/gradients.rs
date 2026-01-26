@@ -538,6 +538,7 @@ fn simple_radial_tiny_skia(bencher: &mut Bencher) {
     paint.anti_alias = false;
     paint.shader = RadialGradient::new(
         Point::from_xy(500.0, 500.0),
+        0.0,
         Point::from_xy(500.0, 500.0),
         500.0,
         vec![
@@ -692,6 +693,7 @@ fn two_point_radial_tiny_skia(bencher: &mut Bencher) {
     paint.anti_alias = false;
     paint.shader = RadialGradient::new(
         Point::from_xy(400.0, 400.0),
+        0.0,
         Point::from_xy(500.0, 500.0),
         500.0,
         vec![

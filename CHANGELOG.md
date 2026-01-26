@@ -5,6 +5,14 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
+### Added
+- 2-point conical gradient support for (`RadialGradient`).
+  Thanks to [@wmedrano](https://github.com/wmedrano)
+
+### Changed
+- The `RadialGradient::new` requires a start radius now. Set the second argument
+  to 0.0 to preserve the old behavior.
+
 
 ## [0.11.4] - 2024-02-04
 ### Fixed

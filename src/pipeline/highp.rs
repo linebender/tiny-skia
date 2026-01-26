@@ -116,9 +116,16 @@ pub const STAGES: &[StageFn; super::STAGES_COUNT] = &[
     xy_to_radius,
     xy_to_2pt_conical_focal_on_circle,
     xy_to_2pt_conical_well_behaved,
+    xy_to_2pt_conical_smaller,
     xy_to_2pt_conical_greater,
+    xy_to_2pt_conical_strip,
+    mask_2pt_conical_nan,
     mask_2pt_conical_degenerates,
     apply_vector_mask,
+    alter_2pt_conical_compensate_focal,
+    alter_2pt_conical_unswap,
+    negate_x,
+    apply_concentric_scale_bias,
     gamma_expand_2,
     gamma_expand_dst_2,
     gamma_compress_2,
@@ -1017,25 +1024,44 @@ fn xy_to_2pt_conical_greater(p: &mut Pipeline) {
     p.next_stage();
 }
 
+fn xy_to_2pt_conical_smaller(p: &mut Pipeline) {
+    let ctx = &p.ctx.two_point_conical_gradient;
+
+    let x = p.r;
+    let y = p.g;
+    p.r = -(x * x - y * y).sqrt() - x * f32x8::splat(ctx.p0);
+
+    p.next_stage();
+}
+
+fn xy_to_2pt_conical_strip(p: &mut Pipeline) {
+    let ctx = &p.ctx.two_point_conical_gradient;
+
+    let x = p.r;
+    let y = p.g;
+    p.r = x + (f32x8::splat(ctx.p0) - y * y).sqrt();
+
+    p.next_stage();
+}
+
+fn mask_2pt_conical_nan(p: &mut Pipeline) {
+    let ctx = &mut p.ctx.two_point_conical_gradient;
+
+    let t = p.r;
+    let is_degenerate = t.cmp_ne(t);
+    p.r = is_degenerate.blend(f32x8::default(), t);
+    ctx.mask = cond_to_mask(!is_degenerate.to_u32x8_bitcast());
+
+    p.next_stage();
+}
+
 fn mask_2pt_conical_degenerates(p: &mut Pipeline) {
     let ctx = &mut p.ctx.two_point_conical_gradient;
 
     let t = p.r;
     let is_degenerate = t.cmp_le(f32x8::default()) | t.cmp_ne(t);
     p.r = is_degenerate.blend(f32x8::default(), t);
-
-    let is_not_degenerate = !is_degenerate.to_u32x8_bitcast();
-    let is_not_degenerate: [u32; 8] = bytemuck::cast(is_not_degenerate);
-    ctx.mask = bytemuck::cast([
-        if is_not_degenerate[0] != 0 { !0 } else { 0 },
-        if is_not_degenerate[1] != 0 { !0 } else { 0 },
-        if is_not_degenerate[2] != 0 { !0 } else { 0 },
-        if is_not_degenerate[3] != 0 { !0 } else { 0 },
-        if is_not_degenerate[4] != 0 { !0 } else { 0 },
-        if is_not_degenerate[5] != 0 { !0 } else { 0 },
-        if is_not_degenerate[6] != 0 { !0 } else { 0 },
-        if is_not_degenerate[7] != 0 { !0 } else { 0 },
-    ]);
+    ctx.mask = cond_to_mask(!is_degenerate.to_u32x8_bitcast());
 
     p.next_stage();
 }
@@ -1047,6 +1073,36 @@ fn apply_vector_mask(p: &mut Pipeline) {
     p.g = (p.g.to_u32x8_bitcast() & ctx.mask).to_f32x8_bitcast();
     p.b = (p.b.to_u32x8_bitcast() & ctx.mask).to_f32x8_bitcast();
     p.a = (p.a.to_u32x8_bitcast() & ctx.mask).to_f32x8_bitcast();
+
+    p.next_stage();
+}
+
+fn alter_2pt_conical_compensate_focal(p: &mut Pipeline) {
+    let ctx = &p.ctx.two_point_conical_gradient;
+
+    p.r = p.r + f32x8::splat(ctx.p1);
+
+    p.next_stage();
+}
+
+fn alter_2pt_conical_unswap(p: &mut Pipeline) {
+    p.r = f32x8::splat(1.0) - p.r;
+
+    p.next_stage();
+}
+
+fn negate_x(p: &mut Pipeline) {
+    p.r = -p.r;
+
+    p.next_stage();
+}
+
+fn apply_concentric_scale_bias(p: &mut Pipeline) {
+    let ctx = &p.ctx.two_point_conical_gradient;
+
+    // Apply t = t * scale + bias for concentric gradients
+    let x = p.r;
+    p.r = x * f32x8::splat(ctx.p0) + f32x8::splat(ctx.p1);
 
     p.next_stage();
 }
@@ -1139,6 +1195,21 @@ fn gamma_compress_srgb(p: &mut Pipeline) {
 
 pub fn just_return(_: &mut Pipeline) {
     // Ends the loop.
+}
+
+#[inline(always)]
+fn cond_to_mask(cond: u32x8) -> u32x8 {
+    let cond: [u32; 8] = bytemuck::cast(cond);
+    bytemuck::cast([
+        if cond[0] != 0 { !0 } else { 0 },
+        if cond[1] != 0 { !0 } else { 0 },
+        if cond[2] != 0 { !0 } else { 0 },
+        if cond[3] != 0 { !0 } else { 0 },
+        if cond[4] != 0 { !0 } else { 0 },
+        if cond[5] != 0 { !0 } else { 0 },
+        if cond[6] != 0 { !0 } else { 0 },
+        if cond[7] != 0 { !0 } else { 0 },
+    ])
 }
 
 #[inline(always)]
