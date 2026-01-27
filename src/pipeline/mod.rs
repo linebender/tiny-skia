@@ -124,6 +124,7 @@ pub enum Stage {
     RepeatX1,
     Gradient,
     EvenlySpaced2StopGradient,
+    XYToUnitAngle,
     XYToRadius,
     XYTo2PtConicalFocalOnCircle,
     XYTo2PtConicalWellBehaved,

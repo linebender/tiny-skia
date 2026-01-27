@@ -126,6 +126,9 @@ pub const STAGES: &[StageFn; super::STAGES_COUNT] = &[
     repeat_x1,
     gradient,
     evenly_spaced_2_stop_gradient,
+    // TODO: Can be implemented for lowp as well. The implementation is very similar to its highp
+    // variant.
+    null_fn, // XYToUnitAngle
     xy_to_radius,
     null_fn, // XYTo2PtConicalFocalOnCircle
     null_fn, // XYTo2PtConicalWellBehaved

@@ -113,6 +113,7 @@ pub const STAGES: &[StageFn; super::STAGES_COUNT] = &[
     repeat_x1,
     gradient,
     evenly_spaced_2_stop_gradient,
+    xy_to_unit_angle,
     xy_to_radius,
     xy_to_2pt_conical_focal_on_circle,
     xy_to_2pt_conical_well_behaved,
@@ -985,6 +986,34 @@ fn evenly_spaced_2_stop_gradient(p: &mut Pipeline) {
     p.b = mad(t, f32x8::splat(ctx.factor.b), f32x8::splat(ctx.bias.b));
     p.a = mad(t, f32x8::splat(ctx.factor.a), f32x8::splat(ctx.bias.a));
 
+    p.next_stage();
+}
+
+fn xy_to_unit_angle(p: &mut Pipeline) {
+    let x = p.r;
+    let y = p.g;
+    let x_abs = x.abs();
+    let y_abs = y.abs();
+    let slope = x_abs.min(y_abs) / x_abs.max(y_abs);
+    let s = slope * slope;
+    // Use a 7th degree polynomial to approximate atan.
+    // This was generated using sollya.gforge.inria.fr.
+    // A float optimized polynomial was generated using the following command.
+    // P1 = fpminimax((1/(2*Pi))*atan(x),[|1,3,5,7|],[|24...|],[2^(-40),1],relative);
+    let phi = slope
+        * (f32x8::splat(0.15912117063999176025390625)
+           + s * (f32x8::splat(-5.185396969318389892578125e-2)
+                  + s * (f32x8::splat(2.476101927459239959716796875e-2)
+                         + s * (f32x8::splat(-7.0547382347285747528076171875e-3)))));
+    let phi = x_abs.cmp_lt(y_abs).blend(f32x8::splat(0.25) - phi, phi);
+    let phi = x
+        .cmp_lt(f32x8::splat(0.0))
+        .blend(f32x8::splat(0.5) - phi, phi);
+    let phi = y
+        .cmp_lt(f32x8::splat(0.0))
+        .blend(f32x8::splat(1.0) - phi, phi);
+    let phi = phi.cmp_ne(phi).blend(f32x8::splat(0.0), phi);
+    p.r = phi;
     p.next_stage();
 }
 
