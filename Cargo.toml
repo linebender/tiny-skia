@@ -15,9 +15,9 @@ categories = ["rendering"]
 members = ["path"]
 
 [dependencies]
-arrayref = "0.3.6"
+arrayref = "0.3.9"
 arrayvec = { version = "0.7", default-features = false }
-bytemuck = { version = "1.12", features = ["aarch64_simd"] }
+bytemuck = { version = "1.24", features = ["aarch64_simd"] }
 cfg-if = "1"
 log = "0.4"
 png = { version = "0.18", optional = true }

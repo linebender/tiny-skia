@@ -13,9 +13,9 @@ categories = ["graphics"]
 workspace = ".."
 
 [dependencies]
-arrayref = "0.3.6"
-bytemuck = "1.4"
-libm = { version = "0.2.1", optional = true } # float support on no_std
+arrayref = "0.3.9"
+bytemuck = "1.24"
+libm = { version = "0.2.16", optional = true } # float support on no_std
 strict-num = { version = "0.1", default-features = false }
 
 [features]
