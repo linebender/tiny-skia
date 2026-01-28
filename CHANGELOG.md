@@ -5,11 +5,23 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
+### Fixed
+- Fixed a panic when drawing small anti-aliased rectangles. Thanks to [@nwhitehead](https://github.com/nwhitehead)
+
 ### Added
 - 2-point conical gradient support for (`RadialGradient`).
   Thanks to [@wmedrano](https://github.com/wmedrano)
 - Sweep gradient support (`SweepGradient`).
   Thanks to [@wmedrano](https://github.com/wmedrano)
+- Support for a small number of color spaces. Thanks to [@danieldg](https://github.com/danieldg)
+- Added the `is_empty` and `join` methods to `Rect`. Thanks to [@danieldg](https://github.com/danieldg)
+- Implement `Hash` for `PathVerb`, `Rect` and `Size` and `IntSize`. Thanks to [@LaurenzV](https://github.com/LaurenzV)
+- Add support for relaxed SIMD in WebAssembly. Thanks to [@CryZe](https://github.com/cryze)
+- Add the `from_rgba_unchecked` method to `Color` so it can be created in `const` contexts. Thanks to [@jeffreyrosenbluth](https://github.com/jeffreyrosenbluth)
+- Add the `scale_by` and `scale_to` method to `Size`. Thanks to  [@jermy](https://github.com/jermy)
+- Add the `take_demultiplied` method to `Pixmap`. Thanks to [@JustForFun88](https://github.com/JustForFun88)
+- Add the `take` method to `Mask`. Thanks to [@valadaptive](https://github.com/valadaptive)
+- Add the `round_out` method to `Rect`. Thanks to [@valadaptive](https://github.com/valadaptive)
 
 ### Changed
 - The `RadialGradient::new` requires a start radius now. Set the second argument
