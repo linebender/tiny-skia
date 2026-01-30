@@ -260,6 +260,7 @@ pub struct Context {
     pub limit_x: TileCtx,
     pub limit_y: TileCtx,
     pub transform: Transform,
+    pub required_mipmap_levels: usize,
 }
 
 #[derive(Copy, Clone, Default, Debug)]
@@ -361,6 +362,10 @@ impl RasterPipelineBuilder {
 
     pub fn set_force_hq_pipeline(&mut self, hq: bool) {
         self.force_hq_pipeline = hq;
+    }
+
+    pub fn set_required_mipmap_levels(&mut self, levels: usize) {
+        self.ctx.required_mipmap_levels = levels;
     }
 
     pub fn push(&mut self, stage: Stage) {

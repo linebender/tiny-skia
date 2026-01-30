@@ -8,6 +8,7 @@ use tiny_skia_path::NormalizedF32;
 
 use crate::{BlendMode, ColorSpace, PixmapRef, Shader, SpreadMode, Transform};
 
+use crate::mipmap::compute_required_levels;
 use crate::pipeline;
 use crate::pipeline::RasterPipelineBuilder;
 
@@ -95,7 +96,23 @@ impl<'a> Pattern<'a> {
     }
 
     pub(crate) fn push_stages(&self, cs: ColorSpace, p: &mut RasterPipelineBuilder) -> bool {
-        let ts = match self.transform.invert() {
+        let mut transform = self.transform;
+        let mut quality = self.quality;
+
+        // Minimizing scale via mipmap
+        let mut pixmap_width = self.pixmap.width() as f32;
+        let mut pixmap_height = self.pixmap.height() as f32;
+        let (scale_x, scale_y) = transform.get_scale();
+        if scale_x < 0.5 && scale_y < 0.5 && quality != FilterQuality::Nearest {
+            let (levels, prescale_x, prescale_y) =
+                compute_required_levels(self.pixmap, scale_x, scale_y);
+            p.set_required_mipmap_levels(levels);
+            transform = transform.pre_scale(prescale_x, prescale_y);
+            pixmap_width /= prescale_x;
+            pixmap_height /= prescale_y;
+        }
+
+        let ts = match transform.invert() {
             Some(v) => v,
             None => {
                 log::warn!("failed to invert a pattern transform. Nothing will be rendered");
@@ -106,8 +123,6 @@ impl<'a> Pattern<'a> {
         p.push(pipeline::Stage::SeedShader);
 
         p.push_transform(ts);
-
-        let mut quality = self.quality;
 
         if ts.is_identity() || ts.is_translate() {
             quality = FilterQuality::Nearest;
@@ -122,18 +137,16 @@ impl<'a> Pattern<'a> {
             }
         }
 
-        // TODO: minimizing scale via mipmap
-
         match quality {
             FilterQuality::Nearest => {
                 p.ctx.limit_x = pipeline::TileCtx {
-                    scale: self.pixmap.width() as f32,
-                    inv_scale: 1.0 / self.pixmap.width() as f32,
+                    scale: pixmap_width,
+                    inv_scale: 1.0 / pixmap_width,
                 };
 
                 p.ctx.limit_y = pipeline::TileCtx {
-                    scale: self.pixmap.height() as f32,
-                    inv_scale: 1.0 / self.pixmap.height() as f32,
+                    scale: pixmap_height,
+                    inv_scale: 1.0 / pixmap_height,
                 };
 
                 match self.spread_mode {
@@ -147,16 +160,16 @@ impl<'a> Pattern<'a> {
             FilterQuality::Bilinear => {
                 p.ctx.sampler = pipeline::SamplerCtx {
                     spread_mode: self.spread_mode,
-                    inv_width: 1.0 / self.pixmap.width() as f32,
-                    inv_height: 1.0 / self.pixmap.height() as f32,
+                    inv_width: 1.0 / pixmap_width,
+                    inv_height: 1.0 / pixmap_height,
                 };
                 p.push(pipeline::Stage::Bilinear);
             }
             FilterQuality::Bicubic => {
                 p.ctx.sampler = pipeline::SamplerCtx {
                     spread_mode: self.spread_mode,
-                    inv_width: 1.0 / self.pixmap.width() as f32,
-                    inv_height: 1.0 / self.pixmap.height() as f32,
+                    inv_width: 1.0 / pixmap_width,
+                    inv_height: 1.0 / pixmap_height,
                 };
                 p.push(pipeline::Stage::Bicubic);
 
