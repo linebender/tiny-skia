@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
+
+## [0.12.0] - 2026-02-02
 ### Fixed
 - Fixed a panic when drawing small anti-aliased rectangles. Thanks to [@nwhitehead](https://github.com/nwhitehead)
 
@@ -270,7 +272,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### Added
 - Bindings to a stripped down Skia fork.
 
-[Unreleased]: https://github.com/linebender/tiny-skia/compare/v0.11.4...HEAD
+[Unreleased]: https://github.com/linebender/tiny-skia/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/linebender/tiny-skia/compare/v0.11.4...v0.12.0
 [0.11.4]: https://github.com/linebender/tiny-skia/compare/v0.11.3...v0.11.4
 [0.11.3]: https://github.com/linebender/tiny-skia/compare/v0.11.2...v0.11.3
 [0.11.2]: https://github.com/linebender/tiny-skia/compare/v0.11.1...v0.11.2
