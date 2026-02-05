@@ -469,7 +469,7 @@ fn strip_gradient() {
 }
 
 #[test]
-fn concentric_radial() {
+fn concentric_radial_lq() {
     // Same center, non-zero start radius (concentric gradient)
     let mut paint = Paint::default();
     paint.anti_alias = false;
@@ -491,7 +491,35 @@ fn concentric_radial() {
     let mut pixmap = Pixmap::new(200, 200).unwrap();
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
 
-    let expected = Pixmap::load_png("tests/images/gradients/concentric-radial.png").unwrap();
+    let expected = Pixmap::load_png("tests/images/gradients/concentric-radial-lq.png").unwrap();
+    assert_eq!(pixmap, expected);
+}
+
+#[test]
+fn concentric_radial_hq() {
+    // Same center, non-zero start radius (concentric gradient)
+    let mut paint = Paint::default();
+    paint.anti_alias = false;
+    paint.force_hq_pipeline = true;
+    paint.shader = RadialGradient::new(
+        Point::from_xy(100.0, 100.0),
+        30.0,
+        Point::from_xy(100.0, 100.0),
+        90.0,
+        vec![
+            GradientStop::new(0.0, Color::from_rgba8(50, 127, 150, 200)),
+            GradientStop::new(1.0, Color::from_rgba8(220, 140, 75, 180)),
+        ],
+        SpreadMode::Pad,
+        Transform::identity(),
+    ).unwrap();
+
+    let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
+
+    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+
+    let expected = Pixmap::load_png("tests/images/gradients/concentric-radial-hq.png").unwrap();
     assert_eq!(pixmap, expected);
 }
 
@@ -527,7 +555,7 @@ fn conical_smaller_radial() {
 }
 
 #[test]
-fn sweep_gradient() {
+fn sweep_gradient_lq() {
     let mut paint = Paint::default();
     paint.anti_alias = false;
     paint.shader = SweepGradient::new(
@@ -554,12 +582,12 @@ fn sweep_gradient() {
         None,
     );
 
-    let expected = Pixmap::load_png("tests/images/gradients/sweep-gradient.png").unwrap();
+    let expected = Pixmap::load_png("tests/images/gradients/sweep-gradient-lq.png").unwrap();
     assert_eq!(pixmap, expected);
 }
 
 #[test]
-fn sweep_gradient_full() {
+fn sweep_gradient_full_lq() {
     let mut paint = Paint::default();
     paint.anti_alias = false;
     paint.shader = SweepGradient::new(
@@ -586,6 +614,72 @@ fn sweep_gradient_full() {
         None,
     );
 
-    let expected = Pixmap::load_png("tests/images/gradients/sweep-gradient-full.png").unwrap();
+    let expected = Pixmap::load_png("tests/images/gradients/sweep-gradient-full-lq.png").unwrap();
+    assert_eq!(pixmap, expected);
+}
+
+#[test]
+fn sweep_gradient_hq() {
+    let mut paint = Paint::default();
+    paint.anti_alias = false;
+    paint.force_hq_pipeline = true;
+    paint.shader = SweepGradient::new(
+        Point::from_xy(100.0, 100.0),
+        135.0,
+        225.0,
+        vec![
+            GradientStop::new(0.0, Color::from_rgba8(50, 127, 150, 200)),
+            GradientStop::new(1.0, Color::from_rgba8(220, 140, 75, 180)),
+        ],
+        SpreadMode::Pad,
+        Transform::identity(),
+    )
+        .unwrap();
+
+    let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
+
+    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    pixmap.fill_path(
+        &path,
+        &paint,
+        FillRule::Winding,
+        Transform::identity(),
+        None,
+    );
+
+    let expected = Pixmap::load_png("tests/images/gradients/sweep-gradient-hq.png").unwrap();
+    assert_eq!(pixmap, expected);
+}
+
+#[test]
+fn sweep_gradient_full_hq() {
+    let mut paint = Paint::default();
+    paint.anti_alias = false;
+    paint.force_hq_pipeline = true;
+    paint.shader = SweepGradient::new(
+        Point::from_xy(100.0, 100.0),
+        0.0,
+        360.0,
+        vec![
+            GradientStop::new(0.0, Color::from_rgba8(50, 127, 150, 200)),
+            GradientStop::new(1.0, Color::from_rgba8(220, 140, 75, 180)),
+        ],
+        SpreadMode::Pad,
+        Transform::identity(),
+    )
+    .unwrap();
+
+    let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
+
+    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    pixmap.fill_path(
+        &path,
+        &paint,
+        FillRule::Winding,
+        Transform::identity(),
+        None,
+    );
+
+    let expected = Pixmap::load_png("tests/images/gradients/sweep-gradient-full-hq.png").unwrap();
     assert_eq!(pixmap, expected);
 }

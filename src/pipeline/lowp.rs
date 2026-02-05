@@ -126,9 +126,7 @@ pub const STAGES: &[StageFn; super::STAGES_COUNT] = &[
     repeat_x1,
     gradient,
     evenly_spaced_2_stop_gradient,
-    // TODO: Can be implemented for lowp as well. The implementation is very similar to its highp
-    // variant.
-    null_fn, // XYToUnitAngle
+    xy_to_unit_angle,
     xy_to_radius,
     null_fn, // XYTo2PtConicalFocalOnCircle
     null_fn, // XYTo2PtConicalWellBehaved
@@ -141,7 +139,7 @@ pub const STAGES: &[StageFn; super::STAGES_COUNT] = &[
     null_fn, // Alter2PtConicalCompensateFocal
     null_fn, // Alter2PtConicalUnswap
     null_fn, // NegateX
-    null_fn, // ApplyConcentricScaleBias
+    apply_concentric_scale_bias,
     null_fn, // GammaExpand2
     null_fn, // GammaExpandDestination2
     null_fn, // GammaCompress2
@@ -646,12 +644,52 @@ fn evenly_spaced_2_stop_gradient(p: &mut Pipeline) {
     p.next_stage();
 }
 
+
+fn xy_to_unit_angle(p: &mut Pipeline) {
+    let x = join(&p.r, &p.g);
+    let y = join(&p.b, &p.a);
+    let (x_abs, y_abs) = (x.abs(), y.abs());
+
+    let slope = x_abs.min(y_abs) / x_abs.max(y_abs);
+    let s = slope * slope;
+    // Use a 7th degree polynomial to approximate atan.
+    // This was generated using sollya.gforge.inria.fr.
+    // A float optimized polynomial was generated using the following command.
+    // P1 = fpminimax((1/(2*Pi))*atan(x),[|1,3,5,7|],[|24...|],[2^(-40),1],relative);
+    let phi = slope
+        * (f32x16::splat(0.15912117063999176025390625)
+            + s * (f32x16::splat(-5.185396969318389892578125e-2)
+                + s * (f32x16::splat(2.476101927459239959716796875e-2)
+                    + s * (f32x16::splat(-7.0547382347285747528076171875e-3)))));
+    let phi = x_abs.cmp_lt(y_abs).blend(f32x16::splat(0.25) - phi, phi);
+    let phi = x
+        .cmp_lt(f32x16::splat(0.0))
+        .blend(f32x16::splat(0.5) - phi, phi);
+    let phi = y
+        .cmp_lt(f32x16::splat(0.0))
+        .blend(f32x16::splat(1.0) - phi, phi);
+    let phi = phi.cmp_ne(phi).blend(f32x16::splat(0.0), phi);
+    split(&phi, &mut p.r, &mut p.g);
+    p.next_stage();
+}
+
 fn xy_to_radius(p: &mut Pipeline) {
     let x = join(&p.r, &p.g);
     let y = join(&p.b, &p.a);
     let x = (x*x + y*y).sqrt();
     split(&x, &mut p.r, &mut p.g);
     split(&y, &mut p.b, &mut p.a);
+
+    p.next_stage();
+}
+
+
+fn apply_concentric_scale_bias(p: &mut Pipeline) {
+    let ctx = &p.ctx.two_point_conical_gradient;
+
+    let t = join(&p.r, &p.g);
+    let t = mad(t, f32x16::splat(ctx.p0), f32x16::splat(ctx.p1));
+    split(&t, &mut p.r, &mut p.g);
 
     p.next_stage();
 }
