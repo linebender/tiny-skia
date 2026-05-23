@@ -1246,37 +1246,57 @@ fn load_8888(
     data: &[PremultipliedColorU8; STAGE_WIDTH],
     r: &mut f32x8, g: &mut f32x8, b: &mut f32x8, a: &mut f32x8,
 ) {
-    // Surprisingly, `f32 * FACTOR` is way faster than `f32x8 * f32x8::splat(FACTOR)`.
+    cfg_if::cfg_if! {
+        if #[cfg(all(feature = "simd", target_feature = "avx2"))] {
+            #[cfg(target_arch = "x86")]
+            use core::arch::x86::*;
+            #[cfg(target_arch = "x86_64")]
+            use core::arch::x86_64::*;
 
-    const FACTOR: f32 = 1.0 / 255.0;
+            unsafe {
+                let p = _mm256_loadu_si256(data.as_ptr() as *const __m256i);
+                let mask = _mm256_set1_epi32(0xFF);
+                let factor = _mm256_set1_ps(1.0 / 255.0);
+                let to_f = |v| _mm256_mul_ps(_mm256_cvtepi32_ps(v), factor);
 
-    *r = f32x8::from([
-        data[0].red() as f32 * FACTOR, data[1].red() as f32 * FACTOR,
-        data[2].red() as f32 * FACTOR, data[3].red() as f32 * FACTOR,
-        data[4].red() as f32 * FACTOR, data[5].red() as f32 * FACTOR,
-        data[6].red() as f32 * FACTOR, data[7].red() as f32 * FACTOR,
-    ]);
+                *r = bytemuck::cast(to_f(_mm256_and_si256(p, mask)));
+                *g = bytemuck::cast(to_f(_mm256_and_si256(_mm256_srli_epi32::<8>(p), mask)));
+                *b = bytemuck::cast(to_f(_mm256_and_si256(_mm256_srli_epi32::<16>(p), mask)));
+                *a = bytemuck::cast(to_f(_mm256_srli_epi32::<24>(p)));
+            }
+        } else {
+            // surprisingly, `f32 * FACTOR` is way faster than `f32x8 * f32x8::splat(FACTOR)`.
+            const FACTOR: f32 = 1.0 / 255.0;
 
-    *g = f32x8::from([
-        data[0].green() as f32 * FACTOR, data[1].green() as f32 * FACTOR,
-        data[2].green() as f32 * FACTOR, data[3].green() as f32 * FACTOR,
-        data[4].green() as f32 * FACTOR, data[5].green() as f32 * FACTOR,
-        data[6].green() as f32 * FACTOR, data[7].green() as f32 * FACTOR,
-    ]);
+            *r = f32x8::from([
+                data[0].red() as f32 * FACTOR, data[1].red() as f32 * FACTOR,
+                data[2].red() as f32 * FACTOR, data[3].red() as f32 * FACTOR,
+                data[4].red() as f32 * FACTOR, data[5].red() as f32 * FACTOR,
+                data[6].red() as f32 * FACTOR, data[7].red() as f32 * FACTOR,
+            ]);
 
-    *b = f32x8::from([
-        data[0].blue() as f32 * FACTOR, data[1].blue() as f32 * FACTOR,
-        data[2].blue() as f32 * FACTOR, data[3].blue() as f32 * FACTOR,
-        data[4].blue() as f32 * FACTOR, data[5].blue() as f32 * FACTOR,
-        data[6].blue() as f32 * FACTOR, data[7].blue() as f32 * FACTOR,
-    ]);
+            *g = f32x8::from([
+                data[0].green() as f32 * FACTOR, data[1].green() as f32 * FACTOR,
+                data[2].green() as f32 * FACTOR, data[3].green() as f32 * FACTOR,
+                data[4].green() as f32 * FACTOR, data[5].green() as f32 * FACTOR,
+                data[6].green() as f32 * FACTOR, data[7].green() as f32 * FACTOR,
+            ]);
 
-    *a = f32x8::from([
-        data[0].alpha() as f32 * FACTOR, data[1].alpha() as f32 * FACTOR,
-        data[2].alpha() as f32 * FACTOR, data[3].alpha() as f32 * FACTOR,
-        data[4].alpha() as f32 * FACTOR, data[5].alpha() as f32 * FACTOR,
-        data[6].alpha() as f32 * FACTOR, data[7].alpha() as f32 * FACTOR,
-    ]);
+            *b = f32x8::from([
+                data[0].blue() as f32 * FACTOR, data[1].blue() as f32 * FACTOR,
+                data[2].blue() as f32 * FACTOR, data[3].blue() as f32 * FACTOR,
+                data[4].blue() as f32 * FACTOR, data[5].blue() as f32 * FACTOR,
+                data[6].blue() as f32 * FACTOR, data[7].blue() as f32 * FACTOR,
+            ]);
+
+            *a = f32x8::from([
+                data[0].alpha() as f32 * FACTOR, data[1].alpha() as f32 * FACTOR,
+                data[2].alpha() as f32 * FACTOR, data[3].alpha() as f32 * FACTOR,
+                data[4].alpha() as f32 * FACTOR, data[5].alpha() as f32 * FACTOR,
+                data[6].alpha() as f32 * FACTOR, data[7].alpha() as f32 * FACTOR,
+            ]);
+        }
+    }
 }
 
 #[inline(always)]
@@ -1296,22 +1316,53 @@ fn store_8888(
     r: &f32x8, g: &f32x8, b: &f32x8, a: &f32x8,
     data: &mut [PremultipliedColorU8; STAGE_WIDTH],
 ) {
-    let r: [i32; 8] = unnorm(r).into();
-    let g: [i32; 8] = unnorm(g).into();
-    let b: [i32; 8] = unnorm(b).into();
-    let a: [i32; 8] = unnorm(a).into();
+    cfg_if::cfg_if! {
+        if #[cfg(all(feature = "simd", target_feature = "avx2"))] {
+            #[cfg(target_arch = "x86")]
+            use core::arch::x86::*;
+            #[cfg(target_arch = "x86_64")]
+            use core::arch::x86_64::*;
 
-    let conv = |rr, gg, bb, aa|
-        PremultipliedColorU8::from_rgba_unchecked(rr as u8, gg as u8, bb as u8, aa as u8);
+            // matches unnorm: clamp to [0,1], scale to [0,255], round to nearest (default MXCSR).
+            unsafe {
+                let scale = _mm256_set1_ps(255.0);
+                let zero = _mm256_setzero_ps();
+                let one = _mm256_set1_ps(1.0);
+                let to_u32 = |v| {
+                    let clamped = _mm256_min_ps(_mm256_max_ps(v, zero), one);
+                    _mm256_cvtps_epi32(_mm256_mul_ps(clamped, scale))
+                };
 
-    data[0] = conv(r[0], g[0], b[0], a[0]);
-    data[1] = conv(r[1], g[1], b[1], a[1]);
-    data[2] = conv(r[2], g[2], b[2], a[2]);
-    data[3] = conv(r[3], g[3], b[3], a[3]);
-    data[4] = conv(r[4], g[4], b[4], a[4]);
-    data[5] = conv(r[5], g[5], b[5], a[5]);
-    data[6] = conv(r[6], g[6], b[6], a[6]);
-    data[7] = conv(r[7], g[7], b[7], a[7]);
+                let ri = to_u32(bytemuck::cast(*r));
+                let gi = to_u32(bytemuck::cast(*g));
+                let bi = to_u32(bytemuck::cast(*b));
+                let ai = to_u32(bytemuck::cast(*a));
+
+                let rgba = _mm256_or_si256(
+                    _mm256_or_si256(ri, _mm256_slli_epi32::<8>(gi)),
+                    _mm256_or_si256(_mm256_slli_epi32::<16>(bi), _mm256_slli_epi32::<24>(ai)),
+                );
+                _mm256_storeu_si256(data.as_mut_ptr() as *mut __m256i, rgba);
+            }
+        } else {
+            let r: [i32; 8] = unnorm(r).into();
+            let g: [i32; 8] = unnorm(g).into();
+            let b: [i32; 8] = unnorm(b).into();
+            let a: [i32; 8] = unnorm(a).into();
+
+            let conv = |rr, gg, bb, aa|
+                PremultipliedColorU8::from_rgba_unchecked(rr as u8, gg as u8, bb as u8, aa as u8);
+
+            data[0] = conv(r[0], g[0], b[0], a[0]);
+            data[1] = conv(r[1], g[1], b[1], a[1]);
+            data[2] = conv(r[2], g[2], b[2], a[2]);
+            data[3] = conv(r[3], g[3], b[3], a[3]);
+            data[4] = conv(r[4], g[4], b[4], a[4]);
+            data[5] = conv(r[5], g[5], b[5], a[5]);
+            data[6] = conv(r[6], g[6], b[6], a[6]);
+            data[7] = conv(r[7], g[7], b[7], a[7]);
+        }
+    }
 }
 
 #[inline(always)]

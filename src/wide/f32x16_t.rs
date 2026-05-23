@@ -85,31 +85,47 @@ impl f32x16 {
 
     // This method is too heavy and shouldn't be inlined.
     pub fn save_to_u16x16(&self, dst: &mut u16x16) {
-        // Do not use to_i32x8, because it involves rounding,
-        // and Skia cast's without it.
+        cfg_if::cfg_if! {
+            if #[cfg(all(feature = "simd", target_feature = "avx2"))] {
+                #[cfg(target_arch = "x86")]
+                use core::arch::x86::*;
+                #[cfg(target_arch = "x86_64")]
+                use core::arch::x86_64::*;
 
-        let n0: [f32; 8] = self.0.into();
-        let n1: [f32; 8] = self.1.into();
+                // truncate f32 -> i32 (skia casts without rounding), then saturate-pack to u16x16.
+                // packus_epi32 lane-swaps; permute4x64 with 0xD8 puts the halves back in order.
+                unsafe {
+                    let i0 = _mm256_cvttps_epi32(bytemuck::cast(self.0));
+                    let i1 = _mm256_cvttps_epi32(bytemuck::cast(self.1));
+                    let packed = _mm256_permute4x64_epi64::<0xD8>(_mm256_packus_epi32(i0, i1));
+                    _mm256_storeu_si256(dst.0.as_mut_ptr() as *mut __m256i, packed);
+                }
+            } else {
+                // do not use to_i32x8, because it involves rounding, and skia casts without it.
+                let n0: [f32; 8] = self.0.into();
+                let n1: [f32; 8] = self.1.into();
 
-        dst.0[0] = n0[0] as u16;
-        dst.0[1] = n0[1] as u16;
-        dst.0[2] = n0[2] as u16;
-        dst.0[3] = n0[3] as u16;
+                dst.0[0] = n0[0] as u16;
+                dst.0[1] = n0[1] as u16;
+                dst.0[2] = n0[2] as u16;
+                dst.0[3] = n0[3] as u16;
 
-        dst.0[4] = n0[4] as u16;
-        dst.0[5] = n0[5] as u16;
-        dst.0[6] = n0[6] as u16;
-        dst.0[7] = n0[7] as u16;
+                dst.0[4] = n0[4] as u16;
+                dst.0[5] = n0[5] as u16;
+                dst.0[6] = n0[6] as u16;
+                dst.0[7] = n0[7] as u16;
 
-        dst.0[8] = n1[0] as u16;
-        dst.0[9] = n1[1] as u16;
-        dst.0[10] = n1[2] as u16;
-        dst.0[11] = n1[3] as u16;
+                dst.0[8] = n1[0] as u16;
+                dst.0[9] = n1[1] as u16;
+                dst.0[10] = n1[2] as u16;
+                dst.0[11] = n1[3] as u16;
 
-        dst.0[12] = n1[4] as u16;
-        dst.0[13] = n1[5] as u16;
-        dst.0[14] = n1[6] as u16;
-        dst.0[15] = n1[7] as u16;
+                dst.0[12] = n1[4] as u16;
+                dst.0[13] = n1[5] as u16;
+                dst.0[14] = n1[6] as u16;
+                dst.0[15] = n1[7] as u16;
+            }
+        }
     }
 }
 
