@@ -81,6 +81,34 @@ impl u32x8 {
             }
         }
     }
+
+    /// Gathers 8 u32s from `base[index[i]]`.
+    ///
+    /// # Safety
+    /// Each lane in `index` must be a valid offset (in u32 units) into the
+    /// buffer at `base`. avx2 `vpgatherdd` faults on oob; the scalar fallback
+    /// indexes a raw slice and would UB on oob too.
+    #[inline(always)]
+    pub unsafe fn gather_u32(base: *const u32, index: Self) -> Self {
+        cfg_if::cfg_if! {
+            if #[cfg(all(feature = "simd", target_feature = "avx2"))] {
+                let vindex: __m256i = cast(index);
+                Self(_mm256_i32gather_epi32::<4>(base as *const i32, vindex))
+            } else {
+                let ix: [u32; 8] = bytemuck::cast(index);
+                bytemuck::cast([
+                    *base.add(ix[0] as usize),
+                    *base.add(ix[1] as usize),
+                    *base.add(ix[2] as usize),
+                    *base.add(ix[3] as usize),
+                    *base.add(ix[4] as usize),
+                    *base.add(ix[5] as usize),
+                    *base.add(ix[6] as usize),
+                    *base.add(ix[7] as usize),
+                ])
+            }
+        }
+    }
 }
 
 impl core::ops::Not for u32x8 {

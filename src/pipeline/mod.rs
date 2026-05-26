@@ -155,33 +155,9 @@ impl PixmapRef<'_> {
     #[inline(always)]
     pub(crate) fn gather(&self, index: u32x8) -> [PremultipliedColorU8; highp::STAGE_WIDTH] {
         let pixels = self.pixels();
-        cfg_if::cfg_if! {
-            if #[cfg(all(feature = "simd", target_feature = "avx2"))] {
-                #[cfg(target_arch = "x86")]
-                use core::arch::x86::*;
-                #[cfg(target_arch = "x86_64")]
-                use core::arch::x86_64::*;
-
-                // gather faults on oob; callers clamp indices to [0, w*h) via gather_ix.
-                unsafe {
-                    let vindex: __m256i = bytemuck::cast(index);
-                    let gathered = _mm256_i32gather_epi32::<4>(pixels.as_ptr() as *const i32, vindex);
-                    bytemuck::cast(gathered)
-                }
-            } else {
-                let index: [u32; 8] = bytemuck::cast(index);
-                [
-                    pixels[index[0] as usize],
-                    pixels[index[1] as usize],
-                    pixels[index[2] as usize],
-                    pixels[index[3] as usize],
-                    pixels[index[4] as usize],
-                    pixels[index[5] as usize],
-                    pixels[index[6] as usize],
-                    pixels[index[7] as usize],
-                ]
-            }
-        }
+        // safety: callers clamp indices to [0, w*h) via gather_ix.
+        let gathered = unsafe { u32x8::gather_u32(pixels.as_ptr() as *const u32, index) };
+        bytemuck::cast(gathered)
     }
 }
 
