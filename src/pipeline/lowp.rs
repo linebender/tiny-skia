@@ -742,67 +742,11 @@ fn load_8888(
     data: &[PremultipliedColorU8; STAGE_WIDTH],
     r: &mut u16x16, g: &mut u16x16, b: &mut u16x16, a: &mut u16x16,
 ) {
-    cfg_if::cfg_if! {
-        if #[cfg(all(feature = "simd", target_feature = "avx2"))] {
-            #[cfg(target_arch = "x86")]
-            use core::arch::x86::*;
-            #[cfg(target_arch = "x86_64")]
-            use core::arch::x86_64::*;
-
-            // extract each channel by shift+mask from u32 lanes, then saturate-pack u32x8 + u32x8 -> u16x16.
-            // packus_epi32 lane-swaps; permute4x64 with 0xD8 puts the halves back in order.
-            unsafe {
-                let p_lo = _mm256_loadu_si256(data.as_ptr() as *const __m256i);
-                let p_hi = _mm256_loadu_si256(data.as_ptr().add(8) as *const __m256i);
-                let mask = _mm256_set1_epi32(0xFF);
-                let pack = |lo, hi| _mm256_permute4x64_epi64::<0xD8>(_mm256_packus_epi32(lo, hi));
-
-                let rr = pack(_mm256_and_si256(p_lo, mask), _mm256_and_si256(p_hi, mask));
-                let gg = pack(
-                    _mm256_and_si256(_mm256_srli_epi32::<8>(p_lo), mask),
-                    _mm256_and_si256(_mm256_srli_epi32::<8>(p_hi), mask),
-                );
-                let bb = pack(
-                    _mm256_and_si256(_mm256_srli_epi32::<16>(p_lo), mask),
-                    _mm256_and_si256(_mm256_srli_epi32::<16>(p_hi), mask),
-                );
-                let aa = pack(_mm256_srli_epi32::<24>(p_lo), _mm256_srli_epi32::<24>(p_hi));
-
-                _mm256_storeu_si256(r.0.as_mut_ptr() as *mut __m256i, rr);
-                _mm256_storeu_si256(g.0.as_mut_ptr() as *mut __m256i, gg);
-                _mm256_storeu_si256(b.0.as_mut_ptr() as *mut __m256i, bb);
-                _mm256_storeu_si256(a.0.as_mut_ptr() as *mut __m256i, aa);
-            }
-        } else {
-            *r = u16x16([
-                data[ 0].red() as u16, data[ 1].red() as u16, data[ 2].red() as u16, data[ 3].red() as u16,
-                data[ 4].red() as u16, data[ 5].red() as u16, data[ 6].red() as u16, data[ 7].red() as u16,
-                data[ 8].red() as u16, data[ 9].red() as u16, data[10].red() as u16, data[11].red() as u16,
-                data[12].red() as u16, data[13].red() as u16, data[14].red() as u16, data[15].red() as u16,
-            ]);
-
-            *g = u16x16([
-                data[ 0].green() as u16, data[ 1].green() as u16, data[ 2].green() as u16, data[ 3].green() as u16,
-                data[ 4].green() as u16, data[ 5].green() as u16, data[ 6].green() as u16, data[ 7].green() as u16,
-                data[ 8].green() as u16, data[ 9].green() as u16, data[10].green() as u16, data[11].green() as u16,
-                data[12].green() as u16, data[13].green() as u16, data[14].green() as u16, data[15].green() as u16,
-            ]);
-
-            *b = u16x16([
-                data[ 0].blue() as u16, data[ 1].blue() as u16, data[ 2].blue() as u16, data[ 3].blue() as u16,
-                data[ 4].blue() as u16, data[ 5].blue() as u16, data[ 6].blue() as u16, data[ 7].blue() as u16,
-                data[ 8].blue() as u16, data[ 9].blue() as u16, data[10].blue() as u16, data[11].blue() as u16,
-                data[12].blue() as u16, data[13].blue() as u16, data[14].blue() as u16, data[15].blue() as u16,
-            ]);
-
-            *a = u16x16([
-                data[ 0].alpha() as u16, data[ 1].alpha() as u16, data[ 2].alpha() as u16, data[ 3].alpha() as u16,
-                data[ 4].alpha() as u16, data[ 5].alpha() as u16, data[ 6].alpha() as u16, data[ 7].alpha() as u16,
-                data[ 8].alpha() as u16, data[ 9].alpha() as u16, data[10].alpha() as u16, data[11].alpha() as u16,
-                data[12].alpha() as u16, data[13].alpha() as u16, data[14].alpha() as u16, data[15].alpha() as u16,
-            ]);
-        }
-    }
+    let [rr, gg, bb, aa] = u16x16::load_8888(bytemuck::cast_ref(data));
+    *r = rr;
+    *g = gg;
+    *b = bb;
+    *a = aa;
 }
 
 #[inline(always)]
@@ -822,57 +766,7 @@ fn store_8888(
     r: &u16x16, g: &u16x16, b: &u16x16, a: &u16x16,
     data: &mut [PremultipliedColorU8; STAGE_WIDTH],
 ) {
-    cfg_if::cfg_if! {
-        if #[cfg(all(feature = "simd", target_feature = "avx2"))] {
-            #[cfg(target_arch = "x86")]
-            use core::arch::x86::*;
-            #[cfg(target_arch = "x86_64")]
-            use core::arch::x86_64::*;
-
-            // pack rgba into u32 pixels via (g<<8)|r and (a<<8)|b, then interleave;
-            // unpack_lo/hi cross 128-bit lanes, so a final permute2x128 reassembles in order.
-            unsafe {
-                let rv = _mm256_loadu_si256(r.0.as_ptr() as *const __m256i);
-                let gv = _mm256_loadu_si256(g.0.as_ptr() as *const __m256i);
-                let bv = _mm256_loadu_si256(b.0.as_ptr() as *const __m256i);
-                let av = _mm256_loadu_si256(a.0.as_ptr() as *const __m256i);
-
-                let rg = _mm256_or_si256(rv, _mm256_slli_epi16::<8>(gv));
-                let ba = _mm256_or_si256(bv, _mm256_slli_epi16::<8>(av));
-
-                let p_lo = _mm256_unpacklo_epi16(rg, ba);
-                let p_hi = _mm256_unpackhi_epi16(rg, ba);
-
-                let out_lo = _mm256_permute2x128_si256::<0x20>(p_lo, p_hi);
-                let out_hi = _mm256_permute2x128_si256::<0x31>(p_lo, p_hi);
-
-                _mm256_storeu_si256(data.as_mut_ptr() as *mut __m256i, out_lo);
-                _mm256_storeu_si256(data.as_mut_ptr().add(8) as *mut __m256i, out_hi);
-            }
-        } else {
-            let r = r.as_slice();
-            let g = g.as_slice();
-            let b = b.as_slice();
-            let a = a.as_slice();
-
-            data[ 0] = PremultipliedColorU8::from_rgba_unchecked(r[ 0] as u8, g[ 0] as u8, b[ 0] as u8, a[ 0] as u8);
-            data[ 1] = PremultipliedColorU8::from_rgba_unchecked(r[ 1] as u8, g[ 1] as u8, b[ 1] as u8, a[ 1] as u8);
-            data[ 2] = PremultipliedColorU8::from_rgba_unchecked(r[ 2] as u8, g[ 2] as u8, b[ 2] as u8, a[ 2] as u8);
-            data[ 3] = PremultipliedColorU8::from_rgba_unchecked(r[ 3] as u8, g[ 3] as u8, b[ 3] as u8, a[ 3] as u8);
-            data[ 4] = PremultipliedColorU8::from_rgba_unchecked(r[ 4] as u8, g[ 4] as u8, b[ 4] as u8, a[ 4] as u8);
-            data[ 5] = PremultipliedColorU8::from_rgba_unchecked(r[ 5] as u8, g[ 5] as u8, b[ 5] as u8, a[ 5] as u8);
-            data[ 6] = PremultipliedColorU8::from_rgba_unchecked(r[ 6] as u8, g[ 6] as u8, b[ 6] as u8, a[ 6] as u8);
-            data[ 7] = PremultipliedColorU8::from_rgba_unchecked(r[ 7] as u8, g[ 7] as u8, b[ 7] as u8, a[ 7] as u8);
-            data[ 8] = PremultipliedColorU8::from_rgba_unchecked(r[ 8] as u8, g[ 8] as u8, b[ 8] as u8, a[ 8] as u8);
-            data[ 9] = PremultipliedColorU8::from_rgba_unchecked(r[ 9] as u8, g[ 9] as u8, b[ 9] as u8, a[ 9] as u8);
-            data[10] = PremultipliedColorU8::from_rgba_unchecked(r[10] as u8, g[10] as u8, b[10] as u8, a[10] as u8);
-            data[11] = PremultipliedColorU8::from_rgba_unchecked(r[11] as u8, g[11] as u8, b[11] as u8, a[11] as u8);
-            data[12] = PremultipliedColorU8::from_rgba_unchecked(r[12] as u8, g[12] as u8, b[12] as u8, a[12] as u8);
-            data[13] = PremultipliedColorU8::from_rgba_unchecked(r[13] as u8, g[13] as u8, b[13] as u8, a[13] as u8);
-            data[14] = PremultipliedColorU8::from_rgba_unchecked(r[14] as u8, g[14] as u8, b[14] as u8, a[14] as u8);
-            data[15] = PremultipliedColorU8::from_rgba_unchecked(r[15] as u8, g[15] as u8, b[15] as u8, a[15] as u8);
-        }
-    }
+    u16x16::store_8888(&[*r, *g, *b, *a], bytemuck::cast_mut(data));
 }
 
 #[inline(always)]
@@ -901,27 +795,7 @@ fn store_8888_tail(
 
 #[inline(always)]
 fn load_8(data: &[u8; STAGE_WIDTH], a: &mut u16x16) {
-    cfg_if::cfg_if! {
-        if #[cfg(all(feature = "simd", target_feature = "avx2"))] {
-            #[cfg(target_arch = "x86")]
-            use core::arch::x86::*;
-            #[cfg(target_arch = "x86_64")]
-            use core::arch::x86_64::*;
-
-            unsafe {
-                let bytes = _mm_loadu_si128(data.as_ptr() as *const __m128i);
-                let widened = _mm256_cvtepu8_epi16(bytes);
-                _mm256_storeu_si256(a.0.as_mut_ptr() as *mut __m256i, widened);
-            }
-        } else {
-            *a = u16x16([
-                data[ 0] as u16, data[ 1] as u16, data[ 2] as u16, data[ 3] as u16,
-                data[ 4] as u16, data[ 5] as u16, data[ 6] as u16, data[ 7] as u16,
-                data[ 8] as u16, data[ 9] as u16, data[10] as u16, data[11] as u16,
-                data[12] as u16, data[13] as u16, data[14] as u16, data[15] as u16,
-            ]);
-        }
-    }
+    *a = u16x16::load_u8(data);
 }
 
 #[inline(always)]

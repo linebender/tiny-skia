@@ -128,6 +128,125 @@ impl u16x16 {
         let pair: [uint16x8_t; 2] = cast(self.0);
         (pair[0], pair[1])
     }
+
+    /// Loads 16 8888 RGBA pixels (64 bytes) and unpacks each channel into a u16x16
+    #[inline(always)]
+    pub fn load_8888(data: &[u8; 64]) -> [Self; 4] {
+        cfg_if::cfg_if! {
+            if #[cfg(all(feature = "simd", target_feature = "avx2"))] {
+                #[cfg(target_arch = "x86")]
+                use core::arch::x86::*;
+                #[cfg(target_arch = "x86_64")]
+                use core::arch::x86_64::*;
+
+                // extract each channel by shift+mask from u32 lanes, then saturate-pack u32x8 + u32x8 -> u16x16.
+                // packus_epi32 lane-swaps; permute4x64 with 0xD8 puts the halves back in order
+                unsafe {
+                    let p_lo = _mm256_loadu_si256(data.as_ptr() as *const __m256i);
+                    let p_hi = _mm256_loadu_si256(data.as_ptr().add(32) as *const __m256i);
+                    let mask = _mm256_set1_epi32(0xFF);
+                    let pack = |lo, hi| _mm256_permute4x64_epi64::<0xD8>(_mm256_packus_epi32(lo, hi));
+
+                    let mut out = [Self::default(); 4];
+                    let rr = pack(_mm256_and_si256(p_lo, mask), _mm256_and_si256(p_hi, mask));
+                    let gg = pack(
+                        _mm256_and_si256(_mm256_srli_epi32::<8>(p_lo), mask),
+                        _mm256_and_si256(_mm256_srli_epi32::<8>(p_hi), mask),
+                    );
+                    let bb = pack(
+                        _mm256_and_si256(_mm256_srli_epi32::<16>(p_lo), mask),
+                        _mm256_and_si256(_mm256_srli_epi32::<16>(p_hi), mask),
+                    );
+                    let aa = pack(_mm256_srli_epi32::<24>(p_lo), _mm256_srli_epi32::<24>(p_hi));
+
+                    _mm256_storeu_si256(out[0].0.as_mut_ptr() as *mut __m256i, rr);
+                    _mm256_storeu_si256(out[1].0.as_mut_ptr() as *mut __m256i, gg);
+                    _mm256_storeu_si256(out[2].0.as_mut_ptr() as *mut __m256i, bb);
+                    _mm256_storeu_si256(out[3].0.as_mut_ptr() as *mut __m256i, aa);
+                    out
+                }
+            } else {
+                let mut out = [Self::default(); 4];
+                for i in 0..16 {
+                    out[0].0[i] = data[i * 4 + 0] as u16;
+                    out[1].0[i] = data[i * 4 + 1] as u16;
+                    out[2].0[i] = data[i * 4 + 2] as u16;
+                    out[3].0[i] = data[i * 4 + 3] as u16;
+                }
+                out
+            }
+        }
+    }
+
+    /// Packs 4 u16x16 channels back into 16 8888 RGBA pixels (64 bytes),
+    /// (channel values must fit in u8)
+    #[inline(always)]
+    pub fn store_8888(rgba: &[Self; 4], data: &mut [u8; 64]) {
+        cfg_if::cfg_if! {
+            if #[cfg(all(feature = "simd", target_feature = "avx2"))] {
+                #[cfg(target_arch = "x86")]
+                use core::arch::x86::*;
+                #[cfg(target_arch = "x86_64")]
+                use core::arch::x86_64::*;
+
+                // pack rgba into u32 pixels via (g<<8)|r and (a<<8)|b, then interleave;
+                // unpack_lo/hi cross 128-bit lanes, so a final permute2x128 reassembles in order.
+                unsafe {
+                    let rv = _mm256_loadu_si256(rgba[0].0.as_ptr() as *const __m256i);
+                    let gv = _mm256_loadu_si256(rgba[1].0.as_ptr() as *const __m256i);
+                    let bv = _mm256_loadu_si256(rgba[2].0.as_ptr() as *const __m256i);
+                    let av = _mm256_loadu_si256(rgba[3].0.as_ptr() as *const __m256i);
+
+                    let rg = _mm256_or_si256(rv, _mm256_slli_epi16::<8>(gv));
+                    let ba = _mm256_or_si256(bv, _mm256_slli_epi16::<8>(av));
+
+                    let p_lo = _mm256_unpacklo_epi16(rg, ba);
+                    let p_hi = _mm256_unpackhi_epi16(rg, ba);
+
+                    let out_lo = _mm256_permute2x128_si256::<0x20>(p_lo, p_hi);
+                    let out_hi = _mm256_permute2x128_si256::<0x31>(p_lo, p_hi);
+
+                    _mm256_storeu_si256(data.as_mut_ptr() as *mut __m256i, out_lo);
+                    _mm256_storeu_si256(data.as_mut_ptr().add(32) as *mut __m256i, out_hi);
+                }
+            } else {
+                for i in 0..16 {
+                    data[i * 4 + 0] = rgba[0].0[i] as u8;
+                    data[i * 4 + 1] = rgba[1].0[i] as u8;
+                    data[i * 4 + 2] = rgba[2].0[i] as u8;
+                    data[i * 4 + 3] = rgba[3].0[i] as u8;
+                }
+            }
+        }
+    }
+
+    /// Widens 16 u8 bytes into u16x16
+    #[inline(always)]
+    pub fn load_u8(data: &[u8; 16]) -> Self {
+        cfg_if::cfg_if! {
+            if #[cfg(all(feature = "simd", target_feature = "avx2"))] {
+                #[cfg(target_arch = "x86")]
+                use core::arch::x86::*;
+                #[cfg(target_arch = "x86_64")]
+                use core::arch::x86_64::*;
+
+                unsafe {
+                    let bytes = _mm_loadu_si128(data.as_ptr() as *const __m128i);
+                    let widened = _mm256_cvtepu8_epi16(bytes);
+                    let mut out = Self::default();
+                    _mm256_storeu_si256(out.0.as_mut_ptr() as *mut __m256i, widened);
+                    out
+                }
+            } else {
+                Self([
+                    data[ 0] as u16, data[ 1] as u16, data[ 2] as u16, data[ 3] as u16,
+                    data[ 4] as u16, data[ 5] as u16, data[ 6] as u16, data[ 7] as u16,
+                    data[ 8] as u16, data[ 9] as u16, data[10] as u16, data[11] as u16,
+                    data[12] as u16, data[13] as u16, data[14] as u16, data[15] as u16,
+                ])
+            }
+        }
+    }
 }
 
 impl core::ops::Add<u16x16> for u16x16 {
