@@ -5,6 +5,11 @@
 
 use super::{f32x8, u16x16};
 
+#[cfg(all(feature = "simd", target_feature = "avx2", target_arch = "x86"))]
+use core::arch::x86::*;
+#[cfg(all(feature = "simd", target_feature = "avx2", target_arch = "x86_64"))]
+use core::arch::x86_64::*;
+
 #[derive(Copy, Clone, Debug)]
 #[repr(C, align(32))]
 pub struct f32x16(pub f32x8, pub f32x8);
@@ -87,11 +92,6 @@ impl f32x16 {
     pub fn save_to_u16x16(&self, dst: &mut u16x16) {
         cfg_if::cfg_if! {
             if #[cfg(all(feature = "simd", target_feature = "avx2"))] {
-                #[cfg(target_arch = "x86")]
-                use core::arch::x86::*;
-                #[cfg(target_arch = "x86_64")]
-                use core::arch::x86_64::*;
-
                 // truncate f32 -> i32 (skia casts without rounding), then saturate-pack to u16x16.
                 // packus_epi32 lane-swaps; permute4x64 with 0xD8 puts the halves back in order.
                 unsafe {

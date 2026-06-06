@@ -17,6 +17,11 @@ use bytemuck::cast;
 #[cfg(all(feature = "simd", target_arch = "aarch64", target_feature = "neon"))]
 use core::arch::aarch64::uint16x8_t;
 
+#[cfg(all(feature = "simd", target_feature = "avx2", target_arch = "x86"))]
+use core::arch::x86::*;
+#[cfg(all(feature = "simd", target_feature = "avx2", target_arch = "x86_64"))]
+use core::arch::x86_64::*;
+
 #[allow(non_camel_case_types)]
 #[derive(Copy, Clone, PartialEq, Default, Debug)]
 pub struct u16x16(pub [u16; 16]);
@@ -134,11 +139,6 @@ impl u16x16 {
     pub fn load_8888(data: &[u8; 64]) -> [Self; 4] {
         cfg_if::cfg_if! {
             if #[cfg(all(feature = "simd", target_feature = "avx2"))] {
-                #[cfg(target_arch = "x86")]
-                use core::arch::x86::*;
-                #[cfg(target_arch = "x86_64")]
-                use core::arch::x86_64::*;
-
                 // extract each channel by shift+mask from u32 lanes, then saturate-pack u32x8 + u32x8 -> u16x16.
                 // packus_epi32 lane-swaps; permute4x64 with 0xD8 puts the halves back in order
                 unsafe {
@@ -184,11 +184,6 @@ impl u16x16 {
     pub fn store_8888(rgba: &[Self; 4], data: &mut [u8; 64]) {
         cfg_if::cfg_if! {
             if #[cfg(all(feature = "simd", target_feature = "avx2"))] {
-                #[cfg(target_arch = "x86")]
-                use core::arch::x86::*;
-                #[cfg(target_arch = "x86_64")]
-                use core::arch::x86_64::*;
-
                 // pack rgba into u32 pixels via (g<<8)|r and (a<<8)|b, then interleave;
                 // unpack_lo/hi cross 128-bit lanes, so a final permute2x128 reassembles in order.
                 unsafe {
@@ -225,11 +220,6 @@ impl u16x16 {
     pub fn load_u8(data: &[u8; 16]) -> Self {
         cfg_if::cfg_if! {
             if #[cfg(all(feature = "simd", target_feature = "avx2"))] {
-                #[cfg(target_arch = "x86")]
-                use core::arch::x86::*;
-                #[cfg(target_arch = "x86_64")]
-                use core::arch::x86_64::*;
-
                 unsafe {
                     let bytes = _mm_loadu_si128(data.as_ptr() as *const __m128i);
                     let widened = _mm256_cvtepu8_epi16(bytes);
