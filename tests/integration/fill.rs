@@ -644,3 +644,27 @@ fn fill_rect() {
     let expected = Pixmap::load_png("tests/images/canvas/fill-rect.png").unwrap();
     assert_eq!(pixmap, expected);
 }
+
+// Filling an anti-aliased path with extremely large coordinates used to overflow
+// the fixed-point scan converter: the path's device-space top, when shifted up
+// for supersampling, wrapped around `i32` into a large positive value, escaped
+// the clip clamp and broke an invariant in `walk_edges` (a panic in debug, an
+// out-of-bounds slice access in release).
+// See https://github.com/linebender/resvg/issues/933
+#[test]
+fn huge_coordinates() {
+    let mut paint = Paint::default();
+    paint.set_color_rgba8(50, 127, 150, 200);
+    paint.anti_alias = true;
+
+    let mut pb = PathBuilder::new();
+    pb.move_to(3.0, 6.0);
+    pb.line_to(11.0, 6.0);
+    pb.line_to(11.0, -700_000_000.0);
+    pb.close();
+    let path = pb.finish().unwrap();
+
+    let mut pixmap = Pixmap::new(32, 32).unwrap();
+    // Must not panic.
+    pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+}

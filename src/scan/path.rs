@@ -161,8 +161,14 @@ pub fn fill_path_impl(
         ..LineEdge::default()
     }));
 
-    start_y <<= shift_edges_up;
-    stop_y <<= shift_edges_up;
+    // Use a saturating shift here. The path bounds can extend far beyond the
+    // clip (e.g. a path with extreme coordinates), in which case shifting them
+    // up for supersampling would overflow `i32` and wrap a large-negative
+    // `start_y` into a large-positive value. That bogus value would escape the
+    // clip clamp below and break `walk_edges`' invariant. Saturating keeps the
+    // out-of-range bounds on the correct side so the clamp can do its job.
+    start_y = start_y.saturating_mul(1 << shift_edges_up);
+    stop_y = stop_y.saturating_mul(1 << shift_edges_up);
 
     let top = shifted_clip.shifted().y() as i32;
     if !path_contained_in_clip && start_y < top {
