@@ -1,7 +1,7 @@
 use tiny_skia::*;
 
 fn main() {
-    let triangle = crate_triangle();
+    let triangle = create_triangle();
 
     let mut paint = Paint::default();
     paint.anti_alias = true;
@@ -26,7 +26,7 @@ fn main() {
     pixmap.save_png("image.png").unwrap();
 }
 
-fn crate_triangle() -> Pixmap {
+fn create_triangle() -> Pixmap {
     let mut paint = Paint::default();
     paint.set_color_rgba8(50, 127, 150, 200);
     paint.anti_alias = true;
