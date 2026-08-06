@@ -28,6 +28,9 @@ pub enum FillRule {
     EvenOdd,
 }
 
+#[derive(Debug)]
+pub struct InvalidSize;
+
 /// Controls how a shape should be painted.
 #[derive(Clone, PartialEq, Debug)]
 pub struct Paint<'a> {
@@ -160,7 +163,7 @@ impl Pixmap {
         paint: &PixmapPaint,
         transform: Transform,
         mask: Option<&Mask>,
-    ) -> std::io::Result<()> {
+    ) -> Result<(), InvalidSize> {
         self.as_mut()
             .draw_pixmap(x, y, pixmap, paint, transform, mask)
     }
@@ -477,14 +480,11 @@ impl PixmapMut<'_> {
         paint: &PixmapPaint,
         transform: Transform,
         mask: Option<&Mask>,
-    ) -> std::io::Result<()> {
+    ) -> Result<(), InvalidSize> {
         let rect = pixmap
             .size()
             .to_int_rect(x, y)
-            .ok_or(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Cannot convert the size to a rect",
-            ))?
+            .ok_or(InvalidSize)?
             .to_rect();
 
         // TODO: SkSpriteBlitter
