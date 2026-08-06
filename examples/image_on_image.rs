@@ -10,14 +10,16 @@ fn main() {
     let mut paint = PixmapPaint::default();
     paint.quality = FilterQuality::Bicubic;
 
-    pixmap.draw_pixmap(
-        20,
-        20,
-        triangle.as_ref(),
-        &paint,
-        Transform::from_row(1.2, 0.5, 0.5, 1.2, 0.0, 0.0),
-        None,
-    );
+    pixmap
+        .draw_pixmap(
+            20,
+            20,
+            triangle.as_ref(),
+            &paint,
+            Transform::from_row(1.2, 0.5, 0.5, 1.2, 0.0, 0.0),
+            None,
+        )
+        .unwrap();
 
     println!(
         "Rendered in {:.2}ms",

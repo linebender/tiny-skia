@@ -160,9 +160,9 @@ impl Pixmap {
         paint: &PixmapPaint,
         transform: Transform,
         mask: Option<&Mask>,
-    ) {
+    ) -> std::io::Result<()> {
         self.as_mut()
-            .draw_pixmap(x, y, pixmap, paint, transform, mask);
+            .draw_pixmap(x, y, pixmap, paint, transform, mask)
     }
 
     /// Applies a masks.
@@ -477,8 +477,15 @@ impl PixmapMut<'_> {
         paint: &PixmapPaint,
         transform: Transform,
         mask: Option<&Mask>,
-    ) {
-        let rect = pixmap.size().to_int_rect(x, y).to_rect();
+    ) -> std::io::Result<()> {
+        let rect = pixmap
+            .size()
+            .to_int_rect(x, y)
+            .ok_or(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Cannot convert the size to a rect",
+            ))?
+            .to_rect();
 
         // TODO: SkSpriteBlitter
         // TODO: partially clipped
@@ -502,6 +509,7 @@ impl PixmapMut<'_> {
         };
 
         self.fill_rect(rect, &paint, transform, mask);
+        Ok(())
     }
 
     /// Applies a masks.
