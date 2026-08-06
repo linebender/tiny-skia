@@ -29,7 +29,7 @@ pub enum FillRule {
 }
 
 /// Invalid Size
-#[derive(Debug, Copy)]
+#[derive(Debug, Copy, Clone)]
 pub struct InvalidSize;
 
 /// Controls how a shape should be painted.
