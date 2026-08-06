@@ -117,7 +117,7 @@ mod tests {
 
         let size = IntSize::from_wh(3, 4).unwrap();
         assert_eq!(
-            size.to_int_rect(1, 2),
+            size.to_int_rect(1, 2).unwrap(),
             IntRect::from_xywh(1, 2, 3, 4).unwrap()
         );
     }
