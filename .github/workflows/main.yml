@@ -70,6 +70,7 @@ jobs:
 
     - name: Install wasmtime
       run: |
+        set -euo pipefail
         curl https://wasmtime.dev/install.sh -sSf | bash
         echo "$HOME/.wasmtime/bin" >> $GITHUB_PATH
 
