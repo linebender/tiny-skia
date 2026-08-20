@@ -129,7 +129,7 @@ fn skip_dest() {
     mask.fill_path(&clip_path, FillRule::Winding, true, Transform::default());
 
     pixmap.draw_pixmap(0, 0, pixmap2.as_ref(), &PixmapPaint::default(),
-                                Transform::identity(), Some(&mask));
+                                Transform::identity(), Some(&mask)).unwrap();
 
     let expected = Pixmap::load_png("tests/images/mask/skip-dest.png").unwrap();
     assert_eq!(pixmap, expected);

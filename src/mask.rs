@@ -146,7 +146,7 @@ impl Mask {
     }
 
     pub(crate) fn submask(&self, rect: IntRect) -> Option<SubMaskRef<'_>> {
-        let rect = self.size.to_int_rect(0, 0).intersect(&rect)?;
+        let rect = self.size.to_int_rect(0, 0)?.intersect(&rect)?;
         let row_bytes = self.width() as usize;
         let offset = rect.top() as usize * row_bytes + rect.left() as usize;
 
@@ -166,7 +166,7 @@ impl Mask {
     }
 
     pub(crate) fn subpixmap(&mut self, rect: IntRect) -> Option<SubPixmapMut<'_>> {
-        let rect = self.size.to_int_rect(0, 0).intersect(&rect)?;
+        let rect = self.size.to_int_rect(0, 0)?.intersect(&rect)?;
         let row_bytes = self.width() as usize;
         let offset = rect.top() as usize * row_bytes + rect.left() as usize;
 

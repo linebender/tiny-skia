@@ -542,7 +542,7 @@ impl<'a> PixmapMut<'a> {
     ///
     /// Returns `None` when `Pixmap`'s rect doesn't contain `rect`.
     pub(crate) fn subpixmap(&mut self, rect: IntRect) -> Option<SubPixmapMut<'_>> {
-        let rect = self.size.to_int_rect(0, 0).intersect(&rect)?;
+        let rect = self.size.to_int_rect(0, 0)?.intersect(&rect)?;
         let row_bytes = self.width() as usize * BYTES_PER_PIXEL;
         let offset = rect.top() as usize * row_bytes + rect.left() as usize * BYTES_PER_PIXEL;
 

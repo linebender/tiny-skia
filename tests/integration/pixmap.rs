@@ -95,7 +95,7 @@ fn draw_pixmap() {
     paint.quality = FilterQuality::Bicubic;
 
     let mut pixmap = Pixmap::new(200, 200).unwrap();
-    pixmap.draw_pixmap(20, 20, sub_pixmap.as_ref(), &paint, Transform::identity(), None);
+    pixmap.draw_pixmap(20, 20, sub_pixmap.as_ref(), &paint, Transform::identity(), None).unwrap();
 
     let expected = Pixmap::load_png("tests/images/canvas/draw-pixmap.png").unwrap();
     assert_eq!(pixmap, expected);
@@ -130,7 +130,7 @@ fn draw_pixmap_ts() {
         &paint,
         Transform::from_row(1.2, 0.5, 0.5, 1.2, 0.0, 0.0),
         None,
-    );
+    ).unwrap();
 
     let expected = Pixmap::load_png("tests/images/canvas/draw-pixmap-ts.png").unwrap();
     assert_eq!(pixmap, expected);
@@ -166,7 +166,7 @@ fn draw_pixmap_opacity() {
         &paint,
         Transform::from_row(1.2, 0.5, 0.5, 1.2, 0.0, 0.0),
         None,
-    );
+    ).unwrap();
 
     let expected = Pixmap::load_png("tests/images/canvas/draw-pixmap-opacity.png").unwrap();
     assert_eq!(pixmap, expected);

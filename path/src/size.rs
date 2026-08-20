@@ -84,8 +84,8 @@ impl IntSize {
     }
 
     /// Converts into [`IntRect`] at the provided position.
-    pub fn to_int_rect(&self, x: i32, y: i32) -> IntRect {
-        IntRect::from_xywh(x, y, self.width(), self.height()).unwrap()
+    pub fn to_int_rect(&self, x: i32, y: i32) -> Option<IntRect> {
+        IntRect::from_xywh(x, y, self.width(), self.height())
     }
 }
 
@@ -117,7 +117,7 @@ mod tests {
 
         let size = IntSize::from_wh(3, 4).unwrap();
         assert_eq!(
-            size.to_int_rect(1, 2),
+            size.to_int_rect(1, 2).unwrap(),
             IntRect::from_xywh(1, 2, 3, 4).unwrap()
         );
     }
