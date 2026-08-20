@@ -193,7 +193,8 @@ impl SubPixmapMut<'_> {
         dx: usize,
         dy: usize,
     ) -> &mut [PremultipliedColorU8; highp::STAGE_WIDTH] {
-        arrayref::array_mut_ref!(self.pixels_mut(), self.offset(dx, dy), highp::STAGE_WIDTH)
+        let offset = self.offset(dx, dy);
+        self.pixels_mut()[offset..].first_chunk_mut().unwrap()
     }
 
     #[inline(always)]
@@ -202,7 +203,8 @@ impl SubPixmapMut<'_> {
         dx: usize,
         dy: usize,
     ) -> &mut [PremultipliedColorU8; lowp::STAGE_WIDTH] {
-        arrayref::array_mut_ref!(self.pixels_mut(), self.offset(dx, dy), lowp::STAGE_WIDTH)
+        let offset = self.offset(dx, dy);
+        self.pixels_mut()[offset..].first_chunk_mut().unwrap()
     }
 
     #[inline(always)]
@@ -211,7 +213,8 @@ impl SubPixmapMut<'_> {
         dx: usize,
         dy: usize,
     ) -> &mut [u8; lowp::STAGE_WIDTH] {
-        arrayref::array_mut_ref!(self.data, self.offset(dx, dy), lowp::STAGE_WIDTH)
+        let offset = self.offset(dx, dy);
+        self.data[offset..].first_chunk_mut().unwrap()
     }
 }
 

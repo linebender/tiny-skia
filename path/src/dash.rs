@@ -8,8 +8,6 @@
 
 use alloc::vec::Vec;
 
-use arrayref::array_ref;
-
 use crate::{Path, Point};
 
 use crate::floating_point::{FiniteF32, NonZeroPositiveF32, NormalizedF32, NormalizedF32Exclusive};
@@ -723,7 +721,7 @@ fn compute_pos_tan(
             }
         }
         SegmentType::Quad => {
-            let src = array_ref![points, 0, 3];
+            let src = points.first_chunk::<3>().unwrap();
             if let Some(pos) = pos {
                 *pos = path_geometry::eval_quad_at(src, t);
             }
@@ -734,7 +732,7 @@ fn compute_pos_tan(
             }
         }
         SegmentType::Cubic => {
-            let src = array_ref![points, 0, 4];
+            let src = points.first_chunk::<4>().unwrap();
             if let Some(pos) = pos {
                 *pos = path_geometry::eval_cubic_pos_at(src, t);
             }
@@ -809,18 +807,30 @@ fn segment_to(
                     pb.cubic_to_pt(points[1], points[2], points[3]);
                 } else {
                     let stop_t = NormalizedF32Exclusive::new_bounded(stop_t.get());
-                    path_geometry::chop_cubic_at2(array_ref![points, 0, 4], stop_t, &mut tmp0);
+                    path_geometry::chop_cubic_at2(
+                        points.first_chunk::<4>().unwrap(),
+                        stop_t,
+                        &mut tmp0,
+                    );
                     pb.cubic_to_pt(tmp0[1], tmp0[2], tmp0[3]);
                 }
             } else {
                 let start_tt = NormalizedF32Exclusive::new_bounded(start_t.get());
-                path_geometry::chop_cubic_at2(array_ref![points, 0, 4], start_tt, &mut tmp0);
+                path_geometry::chop_cubic_at2(
+                    points.first_chunk::<4>().unwrap(),
+                    start_tt,
+                    &mut tmp0,
+                );
                 if stop_t == NormalizedF32::ONE {
                     pb.cubic_to_pt(tmp0[4], tmp0[5], tmp0[6]);
                 } else {
                     let new_t = (stop_t.get() - start_t.get()) / (1.0 - start_t.get());
                     let new_t = NormalizedF32Exclusive::new_bounded(new_t);
-                    path_geometry::chop_cubic_at2(array_ref![tmp0, 3, 4], new_t, &mut tmp1);
+                    path_geometry::chop_cubic_at2(
+                        tmp0[3..].first_chunk::<4>().unwrap(),
+                        new_t,
+                        &mut tmp1,
+                    );
                     pb.cubic_to_pt(tmp1[1], tmp1[2], tmp1[3]);
                 }
             }
