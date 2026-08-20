@@ -5,6 +5,11 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
+### Fixed
+- Fixed a panic (an out-of-bounds slice access in release builds) when
+  anti-aliased filling a path with extreme coordinates. The path's device-space
+  vertical bounds overflowed `i32` while being shifted up for supersampling.
+  See [resvg#933](https://github.com/linebender/resvg/issues/933)
 
 ## [0.12.0] - 2026-02-02
 ### Fixed
