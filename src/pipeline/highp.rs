@@ -1246,37 +1246,11 @@ fn load_8888(
     data: &[PremultipliedColorU8; STAGE_WIDTH],
     r: &mut f32x8, g: &mut f32x8, b: &mut f32x8, a: &mut f32x8,
 ) {
-    // Surprisingly, `f32 * FACTOR` is way faster than `f32x8 * f32x8::splat(FACTOR)`.
-
-    const FACTOR: f32 = 1.0 / 255.0;
-
-    *r = f32x8::from([
-        data[0].red() as f32 * FACTOR, data[1].red() as f32 * FACTOR,
-        data[2].red() as f32 * FACTOR, data[3].red() as f32 * FACTOR,
-        data[4].red() as f32 * FACTOR, data[5].red() as f32 * FACTOR,
-        data[6].red() as f32 * FACTOR, data[7].red() as f32 * FACTOR,
-    ]);
-
-    *g = f32x8::from([
-        data[0].green() as f32 * FACTOR, data[1].green() as f32 * FACTOR,
-        data[2].green() as f32 * FACTOR, data[3].green() as f32 * FACTOR,
-        data[4].green() as f32 * FACTOR, data[5].green() as f32 * FACTOR,
-        data[6].green() as f32 * FACTOR, data[7].green() as f32 * FACTOR,
-    ]);
-
-    *b = f32x8::from([
-        data[0].blue() as f32 * FACTOR, data[1].blue() as f32 * FACTOR,
-        data[2].blue() as f32 * FACTOR, data[3].blue() as f32 * FACTOR,
-        data[4].blue() as f32 * FACTOR, data[5].blue() as f32 * FACTOR,
-        data[6].blue() as f32 * FACTOR, data[7].blue() as f32 * FACTOR,
-    ]);
-
-    *a = f32x8::from([
-        data[0].alpha() as f32 * FACTOR, data[1].alpha() as f32 * FACTOR,
-        data[2].alpha() as f32 * FACTOR, data[3].alpha() as f32 * FACTOR,
-        data[4].alpha() as f32 * FACTOR, data[5].alpha() as f32 * FACTOR,
-        data[6].alpha() as f32 * FACTOR, data[7].alpha() as f32 * FACTOR,
-    ]);
+    let [rr, gg, bb, aa] = f32x8::load_8888_unorm(bytemuck::cast_ref(data));
+    *r = rr;
+    *g = gg;
+    *b = bb;
+    *a = aa;
 }
 
 #[inline(always)]
@@ -1296,22 +1270,7 @@ fn store_8888(
     r: &f32x8, g: &f32x8, b: &f32x8, a: &f32x8,
     data: &mut [PremultipliedColorU8; STAGE_WIDTH],
 ) {
-    let r: [i32; 8] = unnorm(r).into();
-    let g: [i32; 8] = unnorm(g).into();
-    let b: [i32; 8] = unnorm(b).into();
-    let a: [i32; 8] = unnorm(a).into();
-
-    let conv = |rr, gg, bb, aa|
-        PremultipliedColorU8::from_rgba_unchecked(rr as u8, gg as u8, bb as u8, aa as u8);
-
-    data[0] = conv(r[0], g[0], b[0], a[0]);
-    data[1] = conv(r[1], g[1], b[1], a[1]);
-    data[2] = conv(r[2], g[2], b[2], a[2]);
-    data[3] = conv(r[3], g[3], b[3], a[3]);
-    data[4] = conv(r[4], g[4], b[4], a[4]);
-    data[5] = conv(r[5], g[5], b[5], a[5]);
-    data[6] = conv(r[6], g[6], b[6], a[6]);
-    data[7] = conv(r[7], g[7], b[7], a[7]);
+    f32x8::store_8888_unorm(&[*r, *g, *b, *a], bytemuck::cast_mut(data));
 }
 
 #[inline(always)]
