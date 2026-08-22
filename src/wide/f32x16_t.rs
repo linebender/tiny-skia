@@ -54,6 +54,22 @@ impl f32x16 {
         )
     }
 
+    pub fn min(self, rhs: Self) -> Self {
+        Self(self.0.min(rhs.0), self.1.min(rhs.1))
+    }
+
+    pub fn max(self, rhs: Self) -> Self {
+        Self(self.0.max(rhs.0), self.1.max(rhs.1))
+    }
+
+    pub fn cmp_ne(self, rhs: Self) -> Self {
+        Self(self.0.cmp_ne(rhs.0), self.1.cmp_ne(rhs.1))
+    }
+
+    pub fn cmp_lt(self, rhs: Self) -> Self {
+        Self(self.0.cmp_lt(rhs.0), self.1.cmp_lt(rhs.1))
+    }
+
     pub fn cmp_gt(self, rhs: &Self) -> Self {
         Self(self.0.cmp_gt(rhs.0), self.1.cmp_gt(rhs.1))
     }
@@ -134,5 +150,13 @@ impl core::ops::Mul<f32x16> for f32x16 {
 
     fn mul(self, rhs: Self) -> Self::Output {
         Self(self.0 * rhs.0, self.1 * rhs.1)
+    }
+}
+
+impl core::ops::Div<f32x16> for f32x16 {
+    type Output = Self;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        Self(self.0 / rhs.0, self.1 / rhs.1)
     }
 }
