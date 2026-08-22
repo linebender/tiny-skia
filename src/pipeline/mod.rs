@@ -154,18 +154,10 @@ pub const STAGES_COUNT: usize = Stage::GammaCompressSrgb as usize + 1;
 impl PixmapRef<'_> {
     #[inline(always)]
     pub(crate) fn gather(&self, index: u32x8) -> [PremultipliedColorU8; highp::STAGE_WIDTH] {
-        let index: [u32; 8] = bytemuck::cast(index);
         let pixels = self.pixels();
-        [
-            pixels[index[0] as usize],
-            pixels[index[1] as usize],
-            pixels[index[2] as usize],
-            pixels[index[3] as usize],
-            pixels[index[4] as usize],
-            pixels[index[5] as usize],
-            pixels[index[6] as usize],
-            pixels[index[7] as usize],
-        ]
+        // safety: callers clamp indices to [0, w*h) via gather_ix.
+        let gathered = unsafe { u32x8::gather_u32(pixels.as_ptr() as *const u32, index) };
+        bytemuck::cast(gathered)
     }
 }
 
