@@ -44,13 +44,11 @@ impl Pixmap {
         let size = IntSize::from_wh(width, height)?;
         let data_len = data_len_for_size(size)?;
 
-        // We cannot check that allocation was successful yet.
-        // We have to wait for https://github.com/rust-lang/rust/issues/48043
+        let mut data = Vec::new();
+        data.try_reserve_exact(data_len).ok()?;
+        data.resize(data_len, 0);
 
-        Some(Pixmap {
-            data: vec![0; data_len],
-            size,
-        })
+        Some(Pixmap { data, size })
     }
 
     /// Creates a new pixmap by taking ownership over an image buffer

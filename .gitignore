@@ -4,3 +4,4 @@ Cargo.lock
 .DS_Store
 /image.png
 /.vscode
+/.idea
