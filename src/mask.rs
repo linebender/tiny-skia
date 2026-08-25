@@ -14,7 +14,8 @@ use tiny_skia_path::{IntRect, IntSize, Path, Scalar, Transform};
 use crate::geom::IntSizeExt;
 use crate::painter::DrawTiler;
 use crate::pipeline::RasterPipelineBlitter;
-use crate::scan;
+use crate::pixmap::PixelType;
+use crate::{scan, PremultipliedColorU8};
 use crate::{FillRule, PixmapRef};
 
 /// A mask type.
@@ -60,30 +61,49 @@ impl Mask {
             size: pixmap.size(),
         };
 
-        // TODO: optimize
-        match mask_type {
-            MaskType::Alpha => {
-                for (p, a) in pixmap.pixels().iter().zip(mask.data.as_mut_slice()) {
-                    *a = p.alpha();
-                }
-            }
-            MaskType::Luminance => {
-                for (p, ma) in pixmap.pixels().iter().zip(mask.data.as_mut_slice()) {
-                    // Normalize.
-                    let mut r = f32::from(p.red()) / 255.0;
-                    let mut g = f32::from(p.green()) / 255.0;
-                    let mut b = f32::from(p.blue()) / 255.0;
-                    let a = f32::from(p.alpha()) / 255.0;
+        for y in 0..pixmap.height() {
+            let pix_bpp = usize::from(pixmap.pixel_type().size());
 
-                    // Demultiply.
-                    if p.alpha() != 0 {
-                        r /= a;
-                        g /= a;
-                        b /= a;
+            let width = pixmap.width() as usize;
+            let pix_row_len = pix_bpp * width;
+            let row = &pixmap.data()
+                [y as usize * pixmap.stride()..y as usize * pixmap.stride() + pix_row_len];
+            let dst = &mut mask.data[y as usize * width..y as usize * width + width];
+
+            // TODO: optimize
+            match mask_type {
+                MaskType::Alpha => match pixmap.pixel_type() {
+                    PixelType::Rgba8U => {
+                        let pixels: &[PremultipliedColorU8] = bytemuck::cast_slice(row);
+                        for (p, a) in pixels.iter().zip(dst) {
+                            *a = p.alpha();
+                        }
                     }
+                },
+                MaskType::Luminance => {
+                    match pixmap.pixel_type() {
+                        PixelType::Rgba8U => {
+                            let pixels: &[PremultipliedColorU8] = bytemuck::cast_slice(row);
 
-                    let luma = r * 0.2126 + g * 0.7152 + b * 0.0722;
-                    *ma = ((luma * a) * 255.0).clamp(0.0, 255.0).ceil() as u8;
+                            for (p, ma) in pixels.iter().zip(dst) {
+                                // Normalize.
+                                let mut r = f32::from(p.red()) / 255.0;
+                                let mut g = f32::from(p.green()) / 255.0;
+                                let mut b = f32::from(p.blue()) / 255.0;
+                                let a = f32::from(p.alpha()) / 255.0;
+
+                                // Demultiply.
+                                if p.alpha() != 0 {
+                                    r /= a;
+                                    g /= a;
+                                    b /= a;
+                                }
+
+                                let luma = r * 0.2126 + g * 0.7152 + b * 0.0722;
+                                *ma = ((luma * a) * 255.0).clamp(0.0, 255.0).ceil() as u8;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -158,6 +178,7 @@ impl Mask {
 
     pub(crate) fn as_submask_mut(&mut self) -> SubMaskMut<'_> {
         SubMaskMut {
+            size: self.size,
             real_width: self.size.width() as usize,
             data: &mut self.data,
         }
@@ -169,6 +190,7 @@ impl Mask {
         let offset = rect.top() as usize * row_bytes + rect.left() as usize;
 
         Some(SubMaskMut {
+            size: rect.size(),
             real_width: self.size.width() as usize,
             data: &mut self.data[offset..],
         })
@@ -402,5 +424,6 @@ impl<'a> SubMaskRef<'a> {
 
 pub(crate) struct SubMaskMut<'a> {
     pub(crate) data: &'a mut [u8],
+    pub(crate) size: IntSize,
     pub(crate) real_width: usize,
 }

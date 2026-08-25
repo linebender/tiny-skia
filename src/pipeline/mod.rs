@@ -48,7 +48,7 @@ use alloc::vec::Vec;
 
 use arrayvec::ArrayVec;
 
-use tiny_skia_path::NormalizedF32;
+use tiny_skia_path::{IntSize, NormalizedF32};
 
 use crate::mask::SubMaskMut;
 use crate::{Color, PremultipliedColor, PremultipliedColorU8, SpreadMode};
@@ -57,7 +57,7 @@ use crate::{PixmapRef, Transform};
 pub use blitter::RasterPipelineBlitter;
 
 use crate::geom::ScreenIntRect;
-use crate::pixmap::SubPixmapMut;
+use crate::pixmap::PixmapMut;
 use crate::wide::u32x8;
 
 mod blitter;
@@ -156,17 +156,17 @@ impl PixmapRef<'_> {
     #[inline(always)]
     pub(crate) fn gather(&self, index: u32x8) -> [PremultipliedColorU8; highp::STAGE_WIDTH] {
         let index: [u32; 8] = bytemuck::cast(index);
-        let pixels = self.pixels();
-        [
-            pixels[index[0] as usize],
-            pixels[index[1] as usize],
-            pixels[index[2] as usize],
-            pixels[index[3] as usize],
-            pixels[index[4] as usize],
-            pixels[index[5] as usize],
-            pixels[index[6] as usize],
-            pixels[index[7] as usize],
-        ]
+        let data = self.data();
+        bytemuck::cast::<[[u8; 4]; highp::STAGE_WIDTH], _>([
+            *data[index[0] as usize..].first_chunk().unwrap(),
+            *data[index[1] as usize..].first_chunk().unwrap(),
+            *data[index[2] as usize..].first_chunk().unwrap(),
+            *data[index[3] as usize..].first_chunk().unwrap(),
+            *data[index[4] as usize..].first_chunk().unwrap(),
+            *data[index[5] as usize..].first_chunk().unwrap(),
+            *data[index[6] as usize..].first_chunk().unwrap(),
+            *data[index[7] as usize..].first_chunk().unwrap(),
+        ])
     }
 }
 
@@ -174,32 +174,37 @@ impl PixmapRef<'_> {
 /// is left implicit.
 pub(crate) struct GenericPixmapMut<'a> {
     pub(crate) data: &'a mut [u8],
-    pub(crate) real_width: usize,
+    pub(crate) size: IntSize,
+    pub(crate) stride: usize,
 }
 
 impl<'b> GenericPixmapMut<'b> {
-    pub(crate) fn from_pixmap<'a: 'b>(pixmap: &'b mut SubPixmapMut<'a>) -> Self {
+    pub(crate) fn from_pixmap<'a: 'b>(pixmap: &'b mut PixmapMut<'a>) -> Self {
+        let (stride, size) = (pixmap.stride(), pixmap.size());
         Self {
-            data: pixmap.data,
-            real_width: pixmap.real_width,
+            data: pixmap.data_mut(),
+            stride,
+            size,
         }
     }
     pub(crate) fn from_mask<'a: 'b>(mask: &'b mut SubMaskMut<'a>) -> Self {
         Self {
             data: mask.data,
-            real_width: mask.real_width,
+            stride: mask.real_width,
+            size: mask.size,
         }
     }
 
     #[inline(always)]
     pub(crate) fn offset(&self, dx: usize, dy: usize) -> usize {
-        self.real_width * dy + dx
+        self.stride * dy + dx * 4
     }
 
     #[inline(always)]
     pub(crate) fn slice_at_xy(&mut self, dx: usize, dy: usize) -> &mut [PremultipliedColorU8] {
         let offset = self.offset(dx, dy);
-        &mut bytemuck::cast_slice_mut(self.data)[offset..]
+        let len = (self.size.width() as usize - dx) * 4;
+        bytemuck::cast_slice_mut(&mut self.data[offset..offset + len])
     }
 
     #[inline(always)]
@@ -209,9 +214,11 @@ impl<'b> GenericPixmapMut<'b> {
         dy: usize,
     ) -> &mut [PremultipliedColorU8; highp::STAGE_WIDTH] {
         let offset = self.offset(dx, dy);
-        bytemuck::cast_slice_mut(self.data)[offset..]
-            .first_chunk_mut()
-            .unwrap()
+        bytemuck::cast_mut(
+            self.data[offset..]
+                .first_chunk_mut::<{ highp::STAGE_WIDTH * 4 }>()
+                .unwrap(),
+        )
     }
 
     #[inline(always)]
@@ -221,14 +228,21 @@ impl<'b> GenericPixmapMut<'b> {
         dy: usize,
     ) -> &mut [PremultipliedColorU8; lowp::STAGE_WIDTH] {
         let offset = self.offset(dx, dy);
-        bytemuck::cast_slice_mut(self.data)[offset..]
-            .first_chunk_mut()
-            .unwrap()
+        bytemuck::cast_mut(
+            self.data[offset..]
+                .first_chunk_mut::<{ lowp::STAGE_WIDTH * 4 }>()
+                .unwrap(),
+        )
+    }
+
+    #[inline(always)]
+    pub(crate) fn offset_mask(&self, dx: usize, dy: usize) -> usize {
+        self.stride * dy + dx
     }
 
     #[inline(always)]
     pub(crate) fn slice_mask_at_xy(&mut self, dx: usize, dy: usize) -> &mut [u8] {
-        let offset = self.offset(dx, dy);
+        let offset = self.offset_mask(dx, dy);
         &mut self.data[offset..]
     }
 
@@ -238,7 +252,7 @@ impl<'b> GenericPixmapMut<'b> {
         dx: usize,
         dy: usize,
     ) -> &mut [u8; lowp::STAGE_WIDTH] {
-        let offset = self.offset(dx, dy);
+        let offset = self.offset_mask(dx, dy);
         self.data[offset..].first_chunk_mut().unwrap()
     }
 }
@@ -451,18 +465,21 @@ impl RasterPipelineBuilder {
             // While the only difference is the load/store methods.
             let mut tail_functions = functions.clone();
             for fun in &mut tail_functions {
+                // RgbaU8 load/store
                 if highp::fn_ptr(*fun) == highp::fn_ptr(highp::load_dst) {
                     *fun = highp::load_dst_tail as highp::StageFn;
                 } else if highp::fn_ptr(*fun) == highp::fn_ptr(highp::store) {
                     *fun = highp::store_tail as highp::StageFn;
-                } else if highp::fn_ptr(*fun) == highp::fn_ptr(highp::load_dst_u8) {
-                    *fun = highp::load_dst_u8_tail as highp::StageFn;
-                } else if highp::fn_ptr(*fun) == highp::fn_ptr(highp::store_u8) {
-                    *fun = highp::store_u8_tail as highp::StageFn;
                 } else if highp::fn_ptr(*fun) == highp::fn_ptr(highp::source_over_rgba) {
                     // SourceOverRgba calls load/store manually, without the pipeline,
                     // therefore we have to switch it too.
                     *fun = highp::source_over_rgba_tail as highp::StageFn;
+
+                // U8 load/store
+                } else if highp::fn_ptr(*fun) == highp::fn_ptr(highp::load_dst_u8) {
+                    *fun = highp::load_dst_u8_tail as highp::StageFn;
+                } else if highp::fn_ptr(*fun) == highp::fn_ptr(highp::store_u8) {
+                    *fun = highp::store_u8_tail as highp::StageFn;
                 }
             }
 
@@ -484,18 +501,21 @@ impl RasterPipelineBuilder {
             // See above.
             let mut tail_functions = functions.clone();
             for fun in &mut tail_functions {
+                // RgbaU8 load/store
                 if lowp::fn_ptr(*fun) == lowp::fn_ptr(lowp::load_dst) {
                     *fun = lowp::load_dst_tail as lowp::StageFn;
                 } else if lowp::fn_ptr(*fun) == lowp::fn_ptr(lowp::store) {
                     *fun = lowp::store_tail as lowp::StageFn;
-                } else if lowp::fn_ptr(*fun) == lowp::fn_ptr(lowp::load_dst_u8) {
-                    *fun = lowp::load_dst_u8_tail as lowp::StageFn;
-                } else if lowp::fn_ptr(*fun) == lowp::fn_ptr(lowp::store_u8) {
-                    *fun = lowp::store_u8_tail as lowp::StageFn;
                 } else if lowp::fn_ptr(*fun) == lowp::fn_ptr(lowp::source_over_rgba) {
                     // SourceOverRgba calls load/store manually, without the pipeline,
                     // therefore we have to switch it too.
                     *fun = lowp::source_over_rgba_tail as lowp::StageFn;
+
+                // U8 load/store
+                } else if lowp::fn_ptr(*fun) == lowp::fn_ptr(lowp::load_dst_u8) {
+                    *fun = lowp::load_dst_u8_tail as lowp::StageFn;
+                } else if lowp::fn_ptr(*fun) == lowp::fn_ptr(lowp::store_u8) {
+                    *fun = lowp::store_u8_tail as lowp::StageFn;
                 }
             }
 
@@ -603,10 +623,11 @@ mod blend_tests {
                 let mut p = p.compile();
                 let rect = pixmap.size().to_screen_int_rect(0, 0);
                 p.run(&rect, AAMaskCtx::default(), MaskCtx::default(), pixmap_src,
-                    GenericPixmapMut::from_pixmap(&mut pixmap.as_mut().as_subpixmap()));
+                    GenericPixmapMut::from_pixmap(&mut pixmap.as_mut()));
 
+                let pixels = bytemuck::cast_slice::<u8, PremultipliedColorU8>(pixmap.as_ref().data());
                 assert_eq!(
-                    pixmap.as_ref().pixel(0, 0).unwrap(),
+                    pixels[0],
                     PremultipliedColorU8::from_rgba($r, $g, $b, $a).unwrap()
                 );
             }

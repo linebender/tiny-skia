@@ -14,11 +14,11 @@ use crate::geom::ScreenIntRect;
 use crate::mask::{SubMaskMut, SubMaskRef};
 use crate::math::LENGTH_U32_ONE;
 use crate::pipeline::{self, GenericPixmapMut, RasterPipeline, RasterPipelineBuilder};
-use crate::pixmap::SubPixmapMut;
+use crate::pixmap::{PixelType, PixmapMut};
 
 enum PipelineDest<'a, 'b: 'a> {
     Mask(&'a mut SubMaskMut<'b>),
-    Pixmap(&'a mut SubPixmapMut<'b>),
+    Pixmap(&'a mut PixmapMut<'b>),
 }
 
 impl<'a: 'c, 'b: 'a, 'c> PipelineDest<'a, 'b> {
@@ -44,12 +44,12 @@ impl<'a, 'b: 'a> RasterPipelineBlitter<'a, 'b> {
     pub fn new(
         paint: &Paint<'a>,
         mask: Option<SubMaskRef<'a>>,
-        pixmap: &'a mut SubPixmapMut<'b>,
+        pixmap: &'a mut PixmapMut<'b>,
     ) -> Option<Self> {
         // Make sure that `mask` has the same size as `pixmap`.
         if let Some(mask) = mask {
-            if mask.size.width() != pixmap.size.width()
-                || mask.size.height() != pixmap.size.height()
+            if mask.size.width() != pixmap.size().width()
+                || mask.size.height() != pixmap.size().height()
             {
                 log::warn!("Pixmap and Mask are expected to have the same size");
                 return None;
@@ -354,12 +354,17 @@ impl Blitter for RasterPipelineBlitter<'_, '_> {
                 }
                 PipelineDest::Pixmap(pixmap) => {
                     for y in 0..rect.height() {
-                        let start =
-                            4 * pixmap.real_width * (rect.y() + y) as usize + 4 * rect.x() as usize;
-                        let row_pixels = bytemuck::cast_slice_mut::<_, PremultipliedColorU8>(
-                            &mut pixmap.data[start..start + 4 * rect.width() as usize],
-                        );
-                        row_pixels.fill(c);
+                        match pixmap.pixel_type() {
+                            PixelType::Rgba8U => {
+                                let start = pixmap.stride() * (rect.y() + y) as usize
+                                    + 4 * rect.x() as usize;
+                                let row_pixels = bytemuck::cast_slice_mut::<_, PremultipliedColorU8>(
+                                    &mut pixmap.data_mut()
+                                        [start..start + 4 * rect.width() as usize],
+                                );
+                                row_pixels.fill(c);
+                            }
+                        }
                     }
                 }
             }

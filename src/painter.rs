@@ -11,7 +11,7 @@ use tiny_skia_path::{PathStroker, Scalar, SCALAR_MAX};
 use crate::geom::ScreenIntRect;
 use crate::mask::SubMaskRef;
 use crate::pipeline::{GenericPixmapMut, RasterPipelineBlitter, RasterPipelineBuilder};
-use crate::pixmap::SubPixmapMut;
+use crate::pixmap::PixmapMut;
 use crate::scan;
 
 use crate::geom::IntSizeExt;
@@ -196,8 +196,7 @@ impl PixmapMut<'_> {
             let clip = self.size().to_screen_int_rect(0, 0);
 
             let mask = mask.map(|mask| mask.as_submask());
-            let mut subpix = self.as_subpixmap();
-            let mut blitter = match RasterPipelineBlitter::new(paint, mask, &mut subpix) {
+            let mut blitter = match RasterPipelineBlitter::new(paint, mask, self) {
                 Some(v) => v,
                 None => return, // nothing to do, all good
             };
@@ -286,8 +285,7 @@ impl PixmapMut<'_> {
             } else {
                 let clip_rect = self.size().to_screen_int_rect(0, 0);
                 let submask = mask.map(|mask| mask.as_submask());
-                let mut subpix = self.as_subpixmap();
-                let mut blitter = match RasterPipelineBlitter::new(paint, submask, &mut subpix) {
+                let mut blitter = match RasterPipelineBlitter::new(paint, submask, self) {
                     Some(v) => v,
                     None => return, // nothing to do, all good
                 };
@@ -414,7 +412,6 @@ impl PixmapMut<'_> {
                     paint.shader.transform(ts);
                 }
             } else {
-                let subpix = &mut self.as_subpixmap();
                 let submask = mask.map(|mask| mask.as_submask());
                 if !transform.is_identity() {
                     paint.shader.transform(transform);
@@ -428,9 +425,9 @@ impl PixmapMut<'_> {
                         }
                     };
 
-                    Self::stroke_hairline(&path, &paint, stroke.line_cap, submask, subpix);
+                    Self::stroke_hairline(&path, &paint, stroke.line_cap, submask, self);
                 } else {
-                    Self::stroke_hairline(path, &paint, stroke.line_cap, submask, subpix);
+                    Self::stroke_hairline(path, &paint, stroke.line_cap, submask, self);
                 }
             }
         } else {
@@ -452,9 +449,9 @@ impl PixmapMut<'_> {
         paint: &Paint,
         line_cap: LineCap,
         mask: Option<SubMaskRef>,
-        pixmap: &mut SubPixmapMut,
+        pixmap: &mut PixmapMut,
     ) {
-        let clip = pixmap.size.to_screen_int_rect(0, 0);
+        let clip = pixmap.size().to_screen_int_rect(0, 0);
         let mut blitter = match RasterPipelineBlitter::new(paint, mask, pixmap) {
             Some(v) => v,
             None => return, // nothing to do, all good
@@ -531,12 +528,13 @@ impl PixmapMut<'_> {
         p.push(pipeline::Stage::Store);
         let mut p = p.compile();
         let rect = self.size().to_screen_int_rect(0, 0);
+
         p.run(
             &rect,
             pipeline::AAMaskCtx::default(),
             mask.as_submask().mask_ctx(),
             pixmap_src,
-            GenericPixmapMut::from_pixmap(&mut self.as_subpixmap()),
+            GenericPixmapMut::from_pixmap(self),
         );
     }
 }
