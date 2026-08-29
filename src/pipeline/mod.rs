@@ -50,6 +50,7 @@ use arrayvec::ArrayVec;
 
 use tiny_skia_path::NormalizedF32;
 
+use crate::mask::SubMaskMut;
 use crate::{Color, PremultipliedColor, PremultipliedColorU8, SpreadMode};
 use crate::{PixmapRef, Transform};
 
@@ -169,7 +170,27 @@ impl PixmapRef<'_> {
     }
 }
 
-impl SubPixmapMut<'_> {
+/// The target of a pipeline, can be either from a PixmapMut or a MaskMut. The pixel format
+/// is left implicit.
+pub(crate) struct GenericPixmapMut<'a> {
+    pub(crate) data: &'a mut [u8],
+    pub(crate) real_width: usize,
+}
+
+impl<'b> GenericPixmapMut<'b> {
+    pub(crate) fn from_pixmap<'a: 'b>(pixmap: &'b mut SubPixmapMut<'a>) -> Self {
+        Self {
+            data: pixmap.data,
+            real_width: pixmap.real_width,
+        }
+    }
+    pub(crate) fn from_mask<'a: 'b>(mask: &'b mut SubMaskMut<'a>) -> Self {
+        Self {
+            data: mask.data,
+            real_width: mask.real_width,
+        }
+    }
+
     #[inline(always)]
     pub(crate) fn offset(&self, dx: usize, dy: usize) -> usize {
         self.real_width * dy + dx
@@ -178,13 +199,7 @@ impl SubPixmapMut<'_> {
     #[inline(always)]
     pub(crate) fn slice_at_xy(&mut self, dx: usize, dy: usize) -> &mut [PremultipliedColorU8] {
         let offset = self.offset(dx, dy);
-        &mut self.pixels_mut()[offset..]
-    }
-
-    #[inline(always)]
-    pub(crate) fn slice_mask_at_xy(&mut self, dx: usize, dy: usize) -> &mut [u8] {
-        let offset = self.offset(dx, dy);
-        &mut self.data[offset..]
+        &mut bytemuck::cast_slice_mut(self.data)[offset..]
     }
 
     #[inline(always)]
@@ -194,7 +209,9 @@ impl SubPixmapMut<'_> {
         dy: usize,
     ) -> &mut [PremultipliedColorU8; highp::STAGE_WIDTH] {
         let offset = self.offset(dx, dy);
-        self.pixels_mut()[offset..].first_chunk_mut().unwrap()
+        bytemuck::cast_slice_mut(self.data)[offset..]
+            .first_chunk_mut()
+            .unwrap()
     }
 
     #[inline(always)]
@@ -204,7 +221,15 @@ impl SubPixmapMut<'_> {
         dy: usize,
     ) -> &mut [PremultipliedColorU8; lowp::STAGE_WIDTH] {
         let offset = self.offset(dx, dy);
-        self.pixels_mut()[offset..].first_chunk_mut().unwrap()
+        bytemuck::cast_slice_mut(self.data)[offset..]
+            .first_chunk_mut()
+            .unwrap()
+    }
+
+    #[inline(always)]
+    pub(crate) fn slice_mask_at_xy(&mut self, dx: usize, dy: usize) -> &mut [u8] {
+        let offset = self.offset(dx, dy);
+        &mut self.data[offset..]
     }
 
     #[inline(always)]
@@ -508,7 +533,7 @@ impl RasterPipeline {
         aa_mask_ctx: AAMaskCtx,
         mask_ctx: MaskCtx,
         pixmap_src: PixmapRef,
-        pixmap_dst: &mut SubPixmapMut,
+        pixmap_dst: GenericPixmapMut,
     ) {
         match self.kind {
             RasterPipelineKind::High {
@@ -578,7 +603,7 @@ mod blend_tests {
                 let mut p = p.compile();
                 let rect = pixmap.size().to_screen_int_rect(0, 0);
                 p.run(&rect, AAMaskCtx::default(), MaskCtx::default(), pixmap_src,
-                      &mut pixmap.as_mut().as_subpixmap());
+                    GenericPixmapMut::from_pixmap(&mut pixmap.as_mut().as_subpixmap()));
 
                 assert_eq!(
                     pixmap.as_ref().pixel(0, 0).unwrap(),

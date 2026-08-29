@@ -10,7 +10,7 @@ use tiny_skia_path::{PathStroker, Scalar, SCALAR_MAX};
 
 use crate::geom::ScreenIntRect;
 use crate::mask::SubMaskRef;
-use crate::pipeline::{RasterPipelineBlitter, RasterPipelineBuilder};
+use crate::pipeline::{GenericPixmapMut, RasterPipelineBlitter, RasterPipelineBuilder};
 use crate::pixmap::SubPixmapMut;
 use crate::scan;
 
@@ -536,7 +536,7 @@ impl PixmapMut<'_> {
             pipeline::AAMaskCtx::default(),
             mask.as_submask().mask_ctx(),
             pixmap_src,
-            &mut self.as_subpixmap(),
+            GenericPixmapMut::from_pixmap(&mut self.as_subpixmap()),
         );
     }
 }

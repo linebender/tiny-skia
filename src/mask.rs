@@ -14,7 +14,6 @@ use tiny_skia_path::{IntRect, IntSize, Path, Scalar, Transform};
 use crate::geom::IntSizeExt;
 use crate::painter::DrawTiler;
 use crate::pipeline::RasterPipelineBlitter;
-use crate::pixmap::SubPixmapMut;
 use crate::scan;
 use crate::{FillRule, PixmapRef};
 
@@ -157,21 +156,19 @@ impl Mask {
         })
     }
 
-    pub(crate) fn as_subpixmap(&mut self) -> SubPixmapMut<'_> {
-        SubPixmapMut {
-            size: self.size,
+    pub(crate) fn as_submask_mut(&mut self) -> SubMaskMut<'_> {
+        SubMaskMut {
             real_width: self.size.width() as usize,
             data: &mut self.data,
         }
     }
 
-    pub(crate) fn subpixmap(&mut self, rect: IntRect) -> Option<SubPixmapMut<'_>> {
+    pub(crate) fn submask_mut(&mut self, rect: IntRect) -> Option<SubMaskMut<'_>> {
         let rect = self.size.to_int_rect(0, 0).intersect(&rect)?;
         let row_bytes = self.width() as usize;
         let offset = rect.top() as usize * row_bytes + rect.left() as usize;
 
-        Some(SubPixmapMut {
-            size: rect.size(),
+        Some(SubMaskMut {
             real_width: self.size.width() as usize,
             data: &mut self.data[offset..],
         })
@@ -294,12 +291,12 @@ impl Mask {
                     };
 
                     let clip_rect = tile.size().to_screen_int_rect(0, 0);
-                    let mut subpix = match self.subpixmap(tile.to_int_rect()) {
+                    let mut submask = match self.submask_mut(tile.to_int_rect()) {
                         Some(v) => v,
                         None => continue, // technically unreachable
                     };
 
-                    let mut blitter = match RasterPipelineBlitter::new_mask(&mut subpix) {
+                    let mut blitter = match RasterPipelineBlitter::new_mask(&mut submask) {
                         Some(v) => v,
                         None => continue, // nothing to do, all good
                     };
@@ -321,8 +318,8 @@ impl Mask {
                 }
             } else {
                 let clip_rect = self.size().to_screen_int_rect(0, 0);
-                let mut subpix = self.as_subpixmap();
-                let mut blitter = match RasterPipelineBlitter::new_mask(&mut subpix) {
+                let mut submask = self.as_submask_mut();
+                let mut blitter = match RasterPipelineBlitter::new_mask(&mut submask) {
                     Some(v) => v,
                     None => return, // nothing to do, all good
                 };
@@ -401,4 +398,9 @@ impl<'a> SubMaskRef<'a> {
             real_width: self.real_width,
         }
     }
+}
+
+pub(crate) struct SubMaskMut<'a> {
+    pub(crate) data: &'a mut [u8],
+    pub(crate) real_width: usize,
 }

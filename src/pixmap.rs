@@ -580,13 +580,6 @@ pub struct SubPixmapMut<'a> {
     pub real_width: usize,
 }
 
-impl SubPixmapMut<'_> {
-    /// Returns a mutable slice of pixels.
-    pub fn pixels_mut(&mut self) -> &mut [PremultipliedColorU8] {
-        bytemuck::cast_slice_mut(self.data)
-    }
-}
-
 /// Returns minimum bytes per row as usize.
 ///
 /// Pixmap's maximum value for row bytes must fit in 31 bits.

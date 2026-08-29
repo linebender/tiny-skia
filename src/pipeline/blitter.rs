@@ -11,20 +11,33 @@ use crate::alpha_runs::AlphaRun;
 use crate::blitter::{Blitter, Mask};
 use crate::color::AlphaU8;
 use crate::geom::ScreenIntRect;
-use crate::mask::SubMaskRef;
+use crate::mask::{SubMaskMut, SubMaskRef};
 use crate::math::LENGTH_U32_ONE;
-use crate::pipeline::{self, RasterPipeline, RasterPipelineBuilder};
+use crate::pipeline::{self, GenericPixmapMut, RasterPipeline, RasterPipelineBuilder};
 use crate::pixmap::SubPixmapMut;
+
+enum PipelineDest<'a, 'b: 'a> {
+    Mask(&'a mut SubMaskMut<'b>),
+    Pixmap(&'a mut SubPixmapMut<'b>),
+}
+
+impl<'a: 'c, 'b: 'a, 'c> PipelineDest<'a, 'b> {
+    fn to_generic_pixmap(&'c mut self) -> GenericPixmapMut<'c> {
+        match self {
+            PipelineDest::Mask(mask) => GenericPixmapMut::from_mask(mask),
+            PipelineDest::Pixmap(pixmap) => GenericPixmapMut::from_pixmap(pixmap),
+        }
+    }
+}
 
 pub struct RasterPipelineBlitter<'a, 'b: 'a> {
     mask: Option<SubMaskRef<'a>>,
     pixmap_src: PixmapRef<'a>,
-    pixmap: &'a mut SubPixmapMut<'b>,
+    pixmap_dst: PipelineDest<'a, 'b>,
     memset2d_color: Option<PremultipliedColorU8>,
     blit_anti_h_rp: RasterPipeline,
     blit_rect_rp: RasterPipeline,
     blit_mask_rp: RasterPipeline,
-    is_mask: bool,
 }
 
 impl<'a, 'b: 'a> RasterPipelineBlitter<'a, 'b> {
@@ -202,16 +215,15 @@ impl<'a, 'b: 'a> RasterPipelineBlitter<'a, 'b> {
         Some(RasterPipelineBlitter {
             mask,
             pixmap_src,
-            pixmap,
+            pixmap_dst: PipelineDest::Pixmap(pixmap),
             memset2d_color,
             blit_anti_h_rp,
             blit_rect_rp,
             blit_mask_rp,
-            is_mask: false,
         })
     }
 
-    pub fn new_mask(pixmap: &'a mut SubPixmapMut<'b>) -> Option<Self> {
+    pub fn new_mask(mask: &'a mut SubMaskMut<'b>) -> Option<Self> {
         let color = Color::WHITE.premultiply();
 
         let memset2d_color = Some(color.to_color_u8());
@@ -244,12 +256,11 @@ impl<'a, 'b: 'a> RasterPipelineBlitter<'a, 'b> {
         Some(RasterPipelineBlitter {
             mask: None,
             pixmap_src: PixmapRef::from_bytes(&[0, 0, 0, 0], 1, 1).unwrap(),
-            pixmap,
+            pixmap_dst: PipelineDest::Mask(mask),
             memset2d_color,
             blit_anti_h_rp,
             blit_rect_rp,
             blit_mask_rp,
-            is_mask: true,
         })
     }
 }
@@ -283,7 +294,7 @@ impl Blitter for RasterPipelineBlitter<'_, '_> {
                         pipeline::AAMaskCtx::default(),
                         mask_ctx,
                         self.pixmap_src,
-                        self.pixmap,
+                        self.pixmap_dst.to_generic_pixmap(),
                     );
                 }
             }
@@ -333,25 +344,23 @@ impl Blitter for RasterPipelineBlitter<'_, '_> {
 
     fn blit_rect(&mut self, rect: &ScreenIntRect) {
         if let Some(c) = self.memset2d_color {
-            if self.is_mask {
-                for y in 0..rect.height() {
-                    let start = self
-                        .pixmap
-                        .offset(rect.x() as usize, (rect.y() + y) as usize);
-                    let end = start + rect.width() as usize;
-                    self.pixmap.data[start..end]
-                        .iter_mut()
-                        .for_each(|p| *p = c.alpha());
+            match &mut self.pixmap_dst {
+                PipelineDest::Mask(mask) => {
+                    for y in 0..rect.height() {
+                        let start = mask.real_width * ((rect.y() + y) as usize) + rect.x() as usize;
+                        let end = start + rect.width() as usize;
+                        mask.data[start..end].fill(c.alpha());
+                    }
                 }
-            } else {
-                for y in 0..rect.height() {
-                    let start = self
-                        .pixmap
-                        .offset(rect.x() as usize, (rect.y() + y) as usize);
-                    let end = start + rect.width() as usize;
-                    self.pixmap.pixels_mut()[start..end]
-                        .iter_mut()
-                        .for_each(|p| *p = c);
+                PipelineDest::Pixmap(pixmap) => {
+                    for y in 0..rect.height() {
+                        let start =
+                            4 * pixmap.real_width * (rect.y() + y) as usize + 4 * rect.x() as usize;
+                        let row_pixels = bytemuck::cast_slice_mut::<_, PremultipliedColorU8>(
+                            &mut pixmap.data[start..start + 4 * rect.width() as usize],
+                        );
+                        row_pixels.fill(c);
+                    }
                 }
             }
 
@@ -365,7 +374,7 @@ impl Blitter for RasterPipelineBlitter<'_, '_> {
             pipeline::AAMaskCtx::default(),
             mask_ctx,
             self.pixmap_src,
-            self.pixmap,
+            self.pixmap_dst.to_generic_pixmap(),
         );
     }
 
@@ -378,7 +387,12 @@ impl Blitter for RasterPipelineBlitter<'_, '_> {
 
         let mask_ctx = self.mask.map(|c| c.mask_ctx()).unwrap_or_default();
 
-        self.blit_mask_rp
-            .run(clip, aa_mask_ctx, mask_ctx, self.pixmap_src, self.pixmap);
+        self.blit_mask_rp.run(
+            clip,
+            aa_mask_ctx,
+            mask_ctx,
+            self.pixmap_src,
+            self.pixmap_dst.to_generic_pixmap(),
+        );
     }
 }
