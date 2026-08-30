@@ -171,6 +171,16 @@ impl PremultipliedColorU8 {
             )
         }
     }
+
+    /// Converts into `PremultipliedColor`.
+    pub fn to_color(&self) -> PremultipliedColor {
+        PremultipliedColor {
+            r: NormalizedF32::new_clamped(f32::from(self.red()) / 255.0),
+            g: NormalizedF32::new_clamped(f32::from(self.green()) / 255.0),
+            b: NormalizedF32::new_clamped(f32::from(self.blue()) / 255.0),
+            a: NormalizedF32::new_clamped(f32::from(self.alpha()) / 255.0),
+        }
+    }
 }
 
 impl core::fmt::Debug for PremultipliedColorU8 {

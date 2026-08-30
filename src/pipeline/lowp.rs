@@ -30,7 +30,7 @@ On ARM AArch64 the story is different and explicit SIMD make our code up to 2-3x
 
 use crate::PremultipliedColorU8;
 
-use crate::pixmap::SubPixmapMut;
+use crate::pipeline::GenericPixmapMut;
 use crate::wide::{f32x8, u16x16, f32x16};
 use crate::geom::ScreenIntRect;
 
@@ -41,7 +41,7 @@ pub type StageFn = fn(p: &mut Pipeline);
 pub struct Pipeline<'a, 'b: 'a> {
     index: usize,
     functions: &'a [StageFn],
-    pixmap: &'a mut SubPixmapMut<'b>,
+    pixmap: GenericPixmapMut<'b>,
     mask_ctx: super::MaskCtx<'a>,
     aa_mask_ctx: super::AAMaskCtx,
     ctx: &'a mut super::Context,
@@ -169,7 +169,7 @@ pub fn start(
     aa_mask_ctx: super::AAMaskCtx,
     mask_ctx: super::MaskCtx,
     ctx: &mut super::Context,
-    pixmap: &mut SubPixmapMut,
+    pixmap: GenericPixmapMut,
 ) {
     let mut p = Pipeline {
         index: 0,

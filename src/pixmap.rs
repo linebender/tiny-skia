@@ -4,6 +4,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
 
@@ -12,24 +13,76 @@ use core::num::NonZeroUsize;
 
 use tiny_skia_path::IntSize;
 
-use crate::{Color, IntRect};
+use crate::{Color, IntRect, PremultipliedColor};
 
 use crate::color::PremultipliedColorU8;
-use crate::geom::{IntSizeExt, ScreenIntRect};
 
 #[cfg(feature = "png-format")]
 use crate::color::{premultiply_u8, ALPHA_U8_OPAQUE};
 
-/// Number of bytes per pixel.
-pub const BYTES_PER_PIXEL: usize = 4;
+/// This determines how pixels are encoded in memory and map to real values.
+///
+/// This does NOT include color space information.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
+pub enum PixelType {
+    /// 8 bit premultiplied integer values in R,G,B,A memory order.
+    ///
+    /// See [PremultipliedColorU8]
+    ///
+    /// Unit white is (255,255,255,255).
+    Rgba8U,
+}
+
+impl PixelType {
+    /// Number of bytes per pixel
+    #[inline(always)]
+    pub const fn size(&self) -> u8 {
+        match self {
+            PixelType::Rgba8U => 4,
+        }
+    }
+
+    /// Required memory alignment of each pixel
+    #[inline(always)]
+    pub const fn alignment(&self) -> u8 {
+        match self {
+            PixelType::Rgba8U => 1,
+        }
+    }
+}
+
+/// Utility type for an owned buffer which may have a particular alignment
+/// constraint, used by [Pixmap].
+///
+/// [PixelType]s with alignment requirements greater than 1 cannot be stored
+/// directly in a [`Box<[u8]>`], because Rust's allocation rules do not guarantee
+/// that [`Box<[u8]>`]'s data is aligned to a multiple of any value other than 1,
+/// and allocator implementations (for example, a bump allocator sharded by
+/// alignment requirement) could indeed produce [`Box<[u8]>`]s with memory address
+/// value ≡ 1 mod 2.
+///
+/// Because strides need not be a multiple of the pixel size, transmuting the
+/// entire contents to a slice of pixels will not work unless you know the Pixmap
+/// that produced this was tightly packed (which [Pixmap::new] does by default).
+///
+/// If a new [PixelType] with a higher alignment requirement is added, this enum
+/// will gain an option like `Align2`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AlignedMemory {
+    /// Used for [PixelType::Rgba8U]
+    Align1(Box<[u8]>),
+}
 
 /// A container that owns premultiplied RGBA pixels.
 ///
-/// The data is not aligned, therefore width == stride.
+/// The data is only guaranteed to be aligned to match the PixelType.
 #[derive(Clone, PartialEq)]
 pub struct Pixmap {
-    data: Vec<u8>,
+    data: AlignedMemory,
     size: IntSize,
+    /// The number of bytes between the starts of two rows
+    stride: usize,
+    pixel_type: PixelType,
 }
 
 impl Pixmap {
@@ -42,30 +95,105 @@ impl Pixmap {
     /// Pixmap's width is limited by i32::MAX/4.
     pub fn new(width: u32, height: u32) -> Option<Self> {
         let size = IntSize::from_wh(width, height)?;
-        let data_len = data_len_for_size(size)?;
+        let stride = min_row_bytes(size, PixelType::Rgba8U)?;
+        let data_len = data_len_for_size(size, stride.get())?;
 
         // We cannot check that allocation was successful yet.
         // We have to wait for https://github.com/rust-lang/rust/issues/48043
 
+        let data = AlignedMemory::Align1(vec![0; data_len].into_boxed_slice());
+
         Some(Pixmap {
-            data: vec![0; data_len],
+            data,
             size,
+            stride: stride.get(),
+            pixel_type: PixelType::Rgba8U,
+        })
+    }
+
+    /// Allocates a new pixmap with the provided parameters.
+    ///
+    /// A pixmap is filled with transparent black by default.
+    ///
+    /// Zero size in an error.
+    ///
+    /// Pixmap's width is limited by i32::MAX/pix_type.size().
+    pub fn new_with_type(
+        width: u32,
+        height: u32,
+        stride: usize,
+        pixel_type: PixelType,
+    ) -> Option<Self> {
+        let size = IntSize::from_wh(width, height)?;
+        let min_stride = min_row_bytes(size, pixel_type)?;
+        if min_stride.get() > stride {
+            return None;
+        }
+        let data_len = data_len_for_size(size, stride)?;
+
+        let data = AlignedMemory::Align1(vec![0; data_len].into_boxed_slice());
+        Some(Pixmap {
+            data,
+            size,
+            stride,
+            pixel_type,
+        })
+    }
+
+    /// Allocates a new pixmap with the provided parameters.
+    ///
+    /// A pixmap is filled with transparent black by default.
+    ///
+    /// Zero size in an error.
+    ///
+    /// Pixmap's width is limited by i32::MAX/pix_type.size().
+    pub fn from_mem_with_type(
+        data: AlignedMemory,
+        width: u32,
+        height: u32,
+        stride: usize,
+        pixel_type: PixelType,
+    ) -> Option<Self> {
+        let size = IntSize::from_wh(width, height)?;
+        let min_stride = min_row_bytes(size, pixel_type)?;
+        if min_stride.get() > stride {
+            return None;
+        }
+        let data_len = data_len_for_size(size, stride)?;
+
+        let AlignedMemory::Align1(buf) = &data;
+
+        if buf.len() != data_len {
+            return None;
+        }
+
+        Some(Pixmap {
+            data,
+            size,
+            stride,
+            pixel_type,
         })
     }
 
     /// Creates a new pixmap by taking ownership over an image buffer
-    /// (premultiplied RGBA pixels).
+    /// containing tightly packed premultiplied RgbaU8 pixels.
     ///
     /// The size needs to match the data provided.
     ///
     /// Pixmap's width is limited by i32::MAX/4.
     pub fn from_vec(data: Vec<u8>, size: IntSize) -> Option<Self> {
-        let data_len = data_len_for_size(size)?;
+        let stride = min_row_bytes(size, PixelType::Rgba8U)?;
+        let data_len = data_len_for_size(size, stride.get())?;
         if data.len() != data_len {
             return None;
         }
 
-        Some(Pixmap { data, size })
+        Some(Pixmap {
+            data: AlignedMemory::Align1(data.into_boxed_slice()),
+            size,
+            stride: stride.get(),
+            pixel_type: PixelType::Rgba8U,
+        })
     }
 
     /// Decodes a PNG data into a `Pixmap`.
@@ -93,8 +221,10 @@ impl Pixmap {
 
         let size = IntSize::from_wh(info.width, info.height)
             .ok_or_else(|| make_custom_png_error("invalid image size"))?;
-        let data_len =
-            data_len_for_size(size).ok_or_else(|| make_custom_png_error("image is too big"))?;
+        let stride = min_row_bytes(size, PixelType::Rgba8U)
+            .ok_or_else(|| make_custom_png_error("image is too big"))?;
+        let data_len = data_len_for_size(size, stride.get())
+            .ok_or_else(|| make_custom_png_error("image is too big"))?;
 
         img_data = match info.color_type {
             png::ColorType::Rgb => {
@@ -146,7 +276,10 @@ impl Pixmap {
         //
         // Also, in our tests unsafe version (no bound checking)
         // had roughly the same performance. So we keep the safe one.
-        for pixel in img_data.as_mut_slice().chunks_mut(BYTES_PER_PIXEL) {
+        for pixel in img_data
+            .as_mut_slice()
+            .chunks_mut(usize::from(PixelType::Rgba8U.size()))
+        {
             let a = pixel[3];
             pixel[0] = premultiply_u8(pixel[0], a);
             pixel[1] = premultiply_u8(pixel[1], a);
@@ -184,17 +317,23 @@ impl Pixmap {
 
     /// Returns a container that references Pixmap's data.
     pub fn as_ref(&self) -> PixmapRef<'_> {
+        let (size, stride, pixel_type) = (self.size, self.stride, self.pixel_type);
         PixmapRef {
-            data: &self.data,
-            size: self.size,
+            data: self.data(),
+            size,
+            stride,
+            pixel_type,
         }
     }
 
     /// Returns a container that references Pixmap's data.
     pub fn as_mut(&mut self) -> PixmapMut<'_> {
+        let (size, stride, pixel_type) = (self.size, self.stride, self.pixel_type);
         PixmapMut {
-            data: &mut self.data,
-            size: self.size,
+            data: self.data_mut(),
+            size,
+            stride,
+            pixel_type,
         }
     }
 
@@ -210,6 +349,18 @@ impl Pixmap {
         self.size.height()
     }
 
+    /// Returns pixmap's pixel type
+    #[inline]
+    pub fn pixel_type(&self) -> PixelType {
+        self.pixel_type
+    }
+
+    /// Returns pixmap's stride (spacing in bytes between the starts of rows)
+    #[inline]
+    pub fn stride(&self) -> usize {
+        self.stride
+    }
+
     /// Returns pixmap's size.
     #[allow(dead_code)]
     pub(crate) fn size(&self) -> IntSize {
@@ -218,63 +369,63 @@ impl Pixmap {
 
     /// Fills the entire pixmap with a specified color.
     pub fn fill(&mut self, color: Color) {
-        let c = color.premultiply().to_color_u8();
-        for p in self.as_mut().pixels_mut() {
-            *p = c;
-        }
+        self.as_mut().fill(color);
     }
 
     /// Returns the internal data.
     ///
     /// Byteorder: RGBA
     pub fn data(&self) -> &[u8] {
-        self.data.as_slice()
+        match &self.data {
+            AlignedMemory::Align1(mem) => mem,
+        }
     }
 
     /// Returns the mutable internal data.
     ///
     /// Byteorder: RGBA
     pub fn data_mut(&mut self) -> &mut [u8] {
-        self.data.as_mut_slice()
+        match &mut self.data {
+            AlignedMemory::Align1(mem) => mem,
+        }
     }
 
-    /// Returns a pixel color.
+    /// Returns a pixel color, converted to `Color`.
     ///
     /// Returns `None` when position is out of bounds.
-    pub fn pixel(&self, x: u32, y: u32) -> Option<PremultipliedColorU8> {
-        let idx = self.width().checked_mul(y)?.checked_add(x)?;
-        self.pixels().get(idx as usize).cloned()
-    }
-
-    /// Returns a mutable slice of pixels.
-    pub fn pixels_mut(&mut self) -> &mut [PremultipliedColorU8] {
-        bytemuck::cast_slice_mut(self.data_mut())
-    }
-
-    /// Returns a slice of pixels.
-    pub fn pixels(&self) -> &[PremultipliedColorU8] {
-        bytemuck::cast_slice(self.data())
+    pub fn pixel(&self, x: u32, y: u32) -> Option<PremultipliedColor> {
+        self.as_ref().pixel(x, y)
     }
 
     /// Consumes the internal data.
     ///
-    /// Byteorder: RGBA
-    pub fn take(self) -> Vec<u8> {
+    /// See [PixelType] and [Self::stride()] for the data layout.
+    pub fn take(self) -> AlignedMemory {
         self.data
     }
 
     /// Consumes the pixmap and returns the internal data as demultiplied RGBA bytes.
     ///
-    /// Byteorder: RGBA
-    pub fn take_demultiplied(mut self) -> Vec<u8> {
+    /// See [PixelType] for the data layout.
+    pub fn take_demultiplied(mut self) -> AlignedMemory {
         // Demultiply alpha.
         //
         // RasterPipeline is 15% faster here, but produces slightly different results
         // due to rounding. So we stick with this method for now.
-        for pixel in self.pixels_mut() {
-            let c = pixel.demultiply();
-            *pixel =
-                PremultipliedColorU8::from_rgba_unchecked(c.red(), c.green(), c.blue(), c.alpha());
+        match self.pixel_type {
+            PixelType::Rgba8U => {
+                let pixels_mut: &mut [PremultipliedColorU8] =
+                    bytemuck::cast_slice_mut(self.data_mut());
+                for pixel in pixels_mut {
+                    let c = pixel.demultiply();
+                    *pixel = PremultipliedColorU8::from_rgba_unchecked(
+                        c.red(),
+                        c.green(),
+                        c.blue(),
+                        c.alpha(),
+                    );
+                }
+            }
         }
         self.data
     }
@@ -293,6 +444,8 @@ impl core::fmt::Debug for Pixmap {
             .field("data", &"...")
             .field("width", &self.size.width())
             .field("height", &self.size.height())
+            .field("stride", &self.stride())
+            .field("pixel_type", &self.pixel_type())
             .finish()
     }
 }
@@ -300,39 +453,103 @@ impl core::fmt::Debug for Pixmap {
 /// A container that references premultiplied RGBA pixels.
 ///
 /// Can be created from `Pixmap` or from a user provided data.
-///
-/// The data is not aligned, therefore width == stride.
 #[derive(Clone, Copy, PartialEq)]
 pub struct PixmapRef<'a> {
     data: &'a [u8],
     size: IntSize,
+    stride: usize,
+    pixel_type: PixelType,
 }
 
 impl<'a> PixmapRef<'a> {
     /// Creates a new `PixmapRef` from bytes.
     ///
-    /// The size must be at least `size.width() * size.height() * BYTES_PER_PIXEL`.
+    /// The size must be at least `size.width() * size.height() * PixelType::Rgba8U.size()`.
     /// Zero size in an error. Width is limited by i32::MAX/4.
     ///
     /// The `data` is assumed to have premultiplied RGBA pixels (byteorder: RGBA).
     pub fn from_bytes(data: &'a [u8], width: u32, height: u32) -> Option<Self> {
         let size = IntSize::from_wh(width, height)?;
-        let data_len = data_len_for_size(size)?;
+        let stride = min_row_bytes(size, PixelType::Rgba8U)?;
+        let data_len = data_len_for_size(size, stride.get())?;
         if data.len() < data_len {
             return None;
         }
 
-        Some(PixmapRef { data, size })
+        Some(PixmapRef {
+            data,
+            size,
+            stride: stride.get(),
+            pixel_type: PixelType::Rgba8U,
+        })
+    }
+
+    /// Creates a new `PixmapRef` from bytes.
+    ///
+    /// The size must be at least `size.width() * size.height() * pixel_type.size()`.
+    /// Zero size in an error. Width is limited by i32::MAX/pixel_type.size().
+    ///
+    /// The `data` is assumed to have pixels following the given [PixelType]); it
+    /// must have the minimum alignment of the [PixelType]).
+    pub fn from_bytes_with_type(
+        data: &'a [u8],
+        width: u32,
+        height: u32,
+        stride: usize,
+        pixel_type: PixelType,
+    ) -> Option<Self> {
+        let size = IntSize::from_wh(width, height)?;
+        let min_stride = min_row_bytes(size, pixel_type)?;
+        if min_stride.get() > stride {
+            return None;
+        }
+        let data_len = data_len_for_size(size, stride)?;
+        if data.len() != data_len {
+            return None;
+        }
+
+        if data.as_ptr() as usize % usize::from(pixel_type.alignment()) != 0 {
+            return None;
+        }
+
+        Some(PixmapRef {
+            data,
+            size,
+            stride,
+            pixel_type,
+        })
     }
 
     /// Creates a new `Pixmap` from the current data.
     ///
-    /// Clones the underlying data.
+    /// Clones the underlying data; panics on allocation failure.
     pub fn to_owned(&self) -> Pixmap {
-        Pixmap {
-            data: self.data.to_vec(),
-            size: self.size,
+        // Create a tightly packed copy, so that views of larger images don't copy
+        // the entire thing
+        let new_stride = min_row_bytes(self.size(), self.pixel_type)
+            .expect("new stride should be no more than old stride")
+            .get();
+        let mut new =
+            Pixmap::new_with_type(self.width(), self.height(), new_stride, self.pixel_type)
+                .unwrap();
+        {
+            let old_data = self.data();
+            let bpp = usize::from(self.pixel_type.size());
+            let new_stride = new.stride();
+            let mut new_mut = new.as_mut();
+            let new_mut = new_mut.data_mut();
+
+            for y in 0..self.height() {
+                let old_start = y as usize * self.stride();
+                let new_start = y as usize * new_stride;
+                let slice_len = (self.width() as usize) * bpp;
+
+                new_mut[new_start..new_start + slice_len]
+                    .copy_from_slice(&old_data[old_start..old_start + slice_len]);
+            }
         }
+
+        new
     }
 
     /// Returns pixmap's width.
@@ -347,62 +564,54 @@ impl<'a> PixmapRef<'a> {
         self.size.height()
     }
 
+    /// Returns pixmap's pixel type
+    #[inline]
+    pub fn pixel_type(&self) -> PixelType {
+        self.pixel_type
+    }
+
+    /// Returns pixmap's stride (spacing in bytes between the starts of rows)
+    #[inline]
+    pub fn stride(&self) -> usize {
+        self.stride
+    }
+
     /// Returns pixmap's size.
     pub(crate) fn size(&self) -> IntSize {
         self.size
     }
 
-    /// Returns pixmap's rect.
-    pub(crate) fn rect(&self) -> ScreenIntRect {
-        self.size.to_screen_int_rect(0, 0)
-    }
-
     /// Returns the internal data.
     ///
-    /// Byteorder: RGBA
+    /// See the output of [Pixmap::pixel_type] for the pixel format.
     pub fn data(&self) -> &'a [u8] {
         self.data
     }
 
-    /// Returns a pixel color.
+    /// Returns a pixel color, converted to `Color`.
     ///
     /// Returns `None` when position is out of bounds.
-    pub fn pixel(&self, x: u32, y: u32) -> Option<PremultipliedColorU8> {
-        let idx = self.width().checked_mul(y)?.checked_add(x)?;
-        self.pixels().get(idx as usize).cloned()
+    pub fn pixel(&self, x: u32, y: u32) -> Option<PremultipliedColor> {
+        if y >= self.height() || x >= self.width() {
+            return None;
+        }
+        let row = &self.data()[y as usize * self.stride..y as usize * self.stride + self.stride];
+        match self.pixel_type {
+            PixelType::Rgba8U => {
+                let row = bytemuck::cast_slice::<_, PremultipliedColorU8>(
+                    &row[..self.width() as usize * 4],
+                );
+                let color_u8 = row[x as usize];
+                Some(color_u8.to_color())
+            }
+        }
     }
-
-    /// Returns a slice of pixels.
-    pub fn pixels(&self) -> &'a [PremultipliedColorU8] {
-        bytemuck::cast_slice(self.data())
-    }
-
-    // TODO: add rows() iterator
 
     /// Returns a copy of the pixmap that intersects the `rect`.
     ///
     /// Returns `None` when `Pixmap`'s rect doesn't contain `rect`.
     pub fn clone_rect(&self, rect: IntRect) -> Option<Pixmap> {
-        // TODO: to ScreenIntRect?
-
-        let rect = self.rect().to_int_rect().intersect(&rect)?;
-        let mut new = Pixmap::new(rect.width(), rect.height())?;
-        {
-            let old_pixels = self.pixels();
-            let mut new_mut = new.as_mut();
-            let new_pixels = new_mut.pixels_mut();
-
-            // TODO: optimize
-            for y in 0..rect.height() {
-                for x in 0..rect.width() {
-                    let old_idx = (y + rect.y() as u32) * self.width() + (x + rect.x() as u32);
-                    let new_idx = y * rect.width() + x;
-                    new_pixels[new_idx as usize] = old_pixels[old_idx as usize];
-                }
-            }
-        }
-
-        Some(new)
+        Some(self.subpixmap(rect)?.to_owned())
     }
 
     /// Encodes pixmap into a PNG data.
@@ -411,15 +620,16 @@ impl<'a> PixmapRef<'a> {
         // Skia uses skcms here, which is somewhat similar to RasterPipeline.
 
         // Sadly, we have to copy the pixmap here, because of demultiplication.
-        // Not sure how to avoid this.
+        // Not sure how to avoid this. (png::Encoder::stream_writer_with_size?)
         // TODO: remove allocation
-        let demultiplied_data = self.to_owned().take_demultiplied();
-
+        let AlignedMemory::Align1(demultiplied_data) = self.to_owned().take_demultiplied();
         let mut data = Vec::new();
         {
             let mut encoder = png::Encoder::new(&mut data, self.width(), self.height());
             encoder.set_color(png::ColorType::Rgba);
-            encoder.set_depth(png::BitDepth::Eight);
+            match self.pixel_type {
+                PixelType::Rgba8U => encoder.set_depth(png::BitDepth::Eight),
+            }
             let mut writer = encoder.write_header()?;
             writer.write_image_data(&demultiplied_data)?;
         }
@@ -434,6 +644,22 @@ impl<'a> PixmapRef<'a> {
         std::fs::write(path, data)?;
         Ok(())
     }
+
+    /// Returns a reference to the pixmap region that intersects the `rect`.
+    ///
+    /// Returns `None` when `Pixmap`'s rect doesn't contain `rect`.
+    pub fn subpixmap(&self, rect: IntRect) -> Option<PixmapRef<'_>> {
+        let rect = self.size.to_int_rect(0, 0).intersect(&rect)?;
+        let offset = rect.top() as usize * self.stride
+            + rect.left() as usize * usize::from(self.pixel_type.size());
+
+        Some(PixmapRef {
+            size: rect.size(),
+            stride: self.stride,
+            data: &self.data[offset..],
+            pixel_type: self.pixel_type,
+        })
+    }
 }
 
 impl core::fmt::Debug for PixmapRef<'_> {
@@ -442,6 +668,8 @@ impl core::fmt::Debug for PixmapRef<'_> {
             .field("data", &"...")
             .field("width", &self.size.width())
             .field("height", &self.size.height())
+            .field("stride", &self.stride())
+            .field("pixel_type", &self.pixel_type())
             .finish()
     }
 }
@@ -450,38 +678,79 @@ impl core::fmt::Debug for PixmapRef<'_> {
 ///
 /// Can be created from `Pixmap` or from a user provided data.
 ///
-/// The data is not aligned, therefore width == stride.
+/// This may have any stride >= width * sizeof(one pixel of PixelType)
 #[derive(PartialEq)]
 pub struct PixmapMut<'a> {
     data: &'a mut [u8],
     size: IntSize,
+    stride: usize,
+    pixel_type: PixelType,
 }
 
 impl<'a> PixmapMut<'a> {
     /// Creates a new `PixmapMut` from bytes.
     ///
-    /// The size must be at least `size.width() * size.height() * BYTES_PER_PIXEL`.
+    /// The size must be at least `size.width() * size.height() * 4`.
     /// Zero size in an error. Width is limited by i32::MAX/4.
     ///
-    /// The `data` is assumed to have premultiplied RGBA pixels (byteorder: RGBA).
+    /// The `data` is assumed to have premultiplied RGBA pixels (see [PixelType::Rgba8U]).
     pub fn from_bytes(data: &'a mut [u8], width: u32, height: u32) -> Option<Self> {
         let size = IntSize::from_wh(width, height)?;
-        let data_len = data_len_for_size(size)?;
+        let stride = min_row_bytes(size, PixelType::Rgba8U)?;
+        let data_len = data_len_for_size(size, stride.get())?;
         if data.len() < data_len {
             return None;
         }
 
-        Some(PixmapMut { data, size })
+        Some(PixmapMut {
+            data,
+            size,
+            stride: stride.get(),
+            pixel_type: PixelType::Rgba8U,
+        })
+    }
+
+    /// Creates a new `PixmapMut` from bytes.
+    ///
+    /// The size must be at least `size.width() * size.height() * pixel_type.size()`.
+    /// Zero size in an error. Width is limited by i32::MAX/pixel_type.size().
+    ///
+    /// The `data` is assumed to have pixels following the given [PixelType]); it
+    /// must have the minimum alignment of the [PixelType]).
+    pub fn from_bytes_with_type(
+        data: &'a mut [u8],
+        width: u32,
+        height: u32,
+        stride: usize,
+        pixel_type: PixelType,
+    ) -> Option<Self> {
+        let size = IntSize::from_wh(width, height)?;
+        let min_stride = min_row_bytes(size, pixel_type)?;
+        if min_stride.get() > stride {
+            return None;
+        }
+        let data_len = data_len_for_size(size, stride)?;
+        if data.len() != data_len {
+            return None;
+        }
+
+        if data.as_ptr() as usize % usize::from(pixel_type.alignment()) != 0 {
+            return None;
+        }
+
+        Some(PixmapMut {
+            data,
+            size,
+            stride,
+            pixel_type,
+        })
     }
 
     /// Creates a new `Pixmap` from the current data.
     ///
     /// Clones the underlying data.
     pub fn to_owned(&self) -> Pixmap {
-        Pixmap {
-            data: self.data.to_vec(),
-            size: self.size,
-        }
+        self.as_ref().to_owned()
     }
 
     /// Returns a container that references Pixmap's data.
@@ -489,6 +758,8 @@ impl<'a> PixmapMut<'a> {
         PixmapRef {
             data: self.data,
             size: self.size,
+            stride: self.stride,
+            pixel_type: self.pixel_type,
         }
     }
 
@@ -504,6 +775,18 @@ impl<'a> PixmapMut<'a> {
         self.size.height()
     }
 
+    /// Returns pixmap's pixel type
+    #[inline]
+    pub fn pixel_type(&self) -> PixelType {
+        self.pixel_type
+    }
+
+    /// Returns pixmap's stride (spacing in bytes between the starts of rows)
+    #[inline]
+    pub fn stride(&self) -> usize {
+        self.stride
+    }
+
     /// Returns pixmap's size.
     pub(crate) fn size(&self) -> IntSize {
         self.size
@@ -511,45 +794,47 @@ impl<'a> PixmapMut<'a> {
 
     /// Fills the entire pixmap with a specified color.
     pub fn fill(&mut self, color: Color) {
-        let c = color.premultiply().to_color_u8();
-        for p in self.pixels_mut() {
-            *p = c;
+        let stride = self.stride;
+        let row_len = (self.width() as usize) * usize::from(self.pixel_type.size());
+
+        match self.pixel_type {
+            PixelType::Rgba8U => {
+                let c = color.premultiply().to_color_u8();
+                for y in 0..self.height() {
+                    let row = &mut self.data[y as usize * stride..y as usize * stride + row_len];
+                    for p in bytemuck::cast_slice_mut(row) {
+                        *p = c;
+                    }
+                }
+            }
         }
     }
 
     /// Returns the mutable internal data.
     ///
-    /// Byteorder: RGBA
+    /// See the output of [Pixmap::pixel_type] for the pixel format.
     pub fn data_mut(&mut self) -> &mut [u8] {
         self.data
     }
 
-    /// Returns a mutable slice of pixels.
-    pub fn pixels_mut(&mut self) -> &mut [PremultipliedColorU8] {
-        bytemuck::cast_slice_mut(self.data_mut())
-    }
-
-    /// Creates `SubPixmapMut` that contains the whole `PixmapMut`.
-    pub(crate) fn as_subpixmap(&mut self) -> SubPixmapMut<'_> {
-        SubPixmapMut {
-            size: self.size(),
-            real_width: self.width() as usize,
-            data: self.data,
-        }
-    }
+    // /// Returns a mutable slice of pixels.
+    // pub fn pixels_mut(&mut self) -> &mut [PremultipliedColorU8] {
+    //     bytemuck::cast_slice_mut(self.data_mut())
+    // }
 
     /// Returns a mutable reference to the pixmap region that intersects the `rect`.
     ///
     /// Returns `None` when `Pixmap`'s rect doesn't contain `rect`.
-    pub(crate) fn subpixmap(&mut self, rect: IntRect) -> Option<SubPixmapMut<'_>> {
+    pub fn subpixmap(&mut self, rect: IntRect) -> Option<PixmapMut<'_>> {
         let rect = self.size.to_int_rect(0, 0).intersect(&rect)?;
-        let row_bytes = self.width() as usize * BYTES_PER_PIXEL;
-        let offset = rect.top() as usize * row_bytes + rect.left() as usize * BYTES_PER_PIXEL;
+        let offset = rect.top() as usize * self.stride
+            + rect.left() as usize * usize::from(self.pixel_type.size());
 
-        Some(SubPixmapMut {
+        Some(PixmapMut {
             size: rect.size(),
-            real_width: self.width() as usize,
+            stride: self.stride,
             data: &mut self.data[offset..],
+            pixel_type: self.pixel_type,
         })
     }
 }
@@ -560,53 +845,27 @@ impl core::fmt::Debug for PixmapMut<'_> {
             .field("data", &"...")
             .field("width", &self.size.width())
             .field("height", &self.size.height())
+            .field("stride", &self.stride())
+            .field("pixel_type", &self.pixel_type())
             .finish()
-    }
-}
-
-/// A `PixmapMut` subregion.
-///
-/// Unlike `PixmapMut`, contains `real_width` which references the parent `PixmapMut` width.
-/// This way we can operate on a `PixmapMut` subregion without reallocations.
-/// Primarily required because of `DrawTiler`.
-///
-/// We cannot implement it in `PixmapMut` directly, because it will brake `fill`, `data_mut`
-/// `pixels_mut` and other similar methods.
-/// This is because `SubPixmapMut.data` references more "data" than it actually allowed to access.
-/// On the other hand, `PixmapMut.data` can access all it's data and it's stored linearly.
-pub struct SubPixmapMut<'a> {
-    pub data: &'a mut [u8],
-    pub size: IntSize,
-    pub real_width: usize,
-}
-
-impl SubPixmapMut<'_> {
-    /// Returns a mutable slice of pixels.
-    pub fn pixels_mut(&mut self) -> &mut [PremultipliedColorU8] {
-        bytemuck::cast_slice_mut(self.data)
     }
 }
 
 /// Returns minimum bytes per row as usize.
 ///
 /// Pixmap's maximum value for row bytes must fit in 31 bits.
-fn min_row_bytes(size: IntSize) -> Option<NonZeroUsize> {
+fn min_row_bytes(size: IntSize, pixel_type: PixelType) -> Option<NonZeroUsize> {
     let w = i32::try_from(size.width()).ok()?;
-    let w = w.checked_mul(BYTES_PER_PIXEL as i32)?;
+    let w = w.checked_mul(pixel_type.size() as i32)?;
     NonZeroUsize::new(w as usize)
 }
 
-/// Returns storage size required by pixel array.
-fn compute_data_len(size: IntSize, row_bytes: usize) -> Option<usize> {
-    let h = size.height().checked_sub(1)?;
-    let h = (h as usize).checked_mul(row_bytes)?;
-
-    let w = (size.width() as usize).checked_mul(BYTES_PER_PIXEL)?;
-
-    h.checked_add(w)
-}
-
-fn data_len_for_size(size: IntSize) -> Option<usize> {
-    let row_bytes = min_row_bytes(size)?;
-    compute_data_len(size, row_bytes.get())
+/// Returns storage size required by pixel array. Assumes stride is valid.
+///
+/// The caller must have validated `stride` beforehand.
+///
+/// For simplicity, this requires the trailing row include the entire padding
+/// up to 'stride'.
+fn data_len_for_size(size: IntSize, stride: usize) -> Option<usize> {
+    (size.height() as usize).checked_mul(stride)
 }

@@ -141,7 +141,7 @@ fn tiny_float_rect() {
     pixmap.fill_rect(rect, &paint, Transform::identity(), None);
 
     assert_eq!(
-        pixmap.pixels(),
+        bytemuck::cast_slice::<_, PremultipliedColorU8>(pixmap.data()),
         &[
             ColorU8::from_rgba(0, 0, 0, 0).premultiply(),
             ColorU8::from_rgba(0, 0, 0, 0).premultiply(),
@@ -170,7 +170,7 @@ fn tiny_float_rect_aa() {
     pixmap.fill_rect(rect, &paint, Transform::identity(), None);
 
     assert_eq!(
-        pixmap.pixels(),
+        bytemuck::cast_slice::<_, PremultipliedColorU8>(pixmap.data()),
         &[
             ColorU8::from_rgba(0, 0, 0, 0).premultiply(),
             ColorU8::from_rgba(0, 0, 0, 0).premultiply(),
