@@ -33,6 +33,17 @@ fn fill_tiny_skia(blend_mode: tiny_skia::BlendMode, bencher: &mut Bencher) {
         pb.finish().unwrap()
     };
 
+    #[cfg(feature = "16bpc")]
+    if crate::is_16bpc() {
+        let mut pixmap = PixmapU16::new(1000, 1000).unwrap();
+        pixmap.fill_path(&path1, &paint1, FillRule::Winding, Transform::identity(), None);
+
+        bencher.iter(|| {
+            pixmap.fill_path(&path2, &paint2, FillRule::Winding, Transform::identity(), None);
+        });
+        return;
+    }
+
     let mut pixmap = Pixmap::new(1000, 1000).unwrap();
     pixmap.fill_path(&path1, &paint1, FillRule::Winding, Transform::identity(), None);
 

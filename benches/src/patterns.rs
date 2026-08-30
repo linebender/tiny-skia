@@ -24,7 +24,6 @@ fn pattern_tiny_skia(
         pixmap
     }
 
-    let mut pixmap = Pixmap::new(1000, 1000).unwrap();
     let triangle = crate_triangle();
 
     let mut paint = Paint::default();
@@ -44,6 +43,17 @@ fn pattern_tiny_skia(
     pb.cubic_to(740.0, 460.0, 440.0, 160.0, 60.0, 60.0);
     pb.close();
     let path = pb.finish().unwrap();
+
+    #[cfg(feature = "16bpc")]
+    if crate::is_16bpc() {
+        let mut pixmap = PixmapU16::new(1000, 1000).unwrap();
+        bencher.iter(|| {
+            pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+        });
+        return;
+    }
+
+    let mut pixmap = Pixmap::new(1000, 1000).unwrap();
 
     bencher.iter(|| {
         pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);

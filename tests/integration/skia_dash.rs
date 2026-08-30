@@ -41,5 +41,9 @@ fn infinite_dash() {
     let mut pixmap = Pixmap::new(100, 100).unwrap();
     pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None); // Doesn't draw anything.
 
-    assert!(true);
+    #[cfg(feature = "16bpc")]
+    {
+        let mut pixmap16 = PixmapU16::new(100, 100).unwrap();
+        pixmap16.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+    }
 }

@@ -16,7 +16,7 @@ use crate::painter::DrawTiler;
 use crate::pipeline::RasterPipelineBlitter;
 use crate::pixmap::SubPixmapMut;
 use crate::scan;
-use crate::{FillRule, PixmapRef};
+use crate::{FillRule, Pixel, PixmapRefGeneric};
 
 /// A mask type.
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -39,8 +39,8 @@ pub enum MaskType {
 /// It's way slower, but easier to implement.
 #[derive(Clone, PartialEq)]
 pub struct Mask {
-    data: Vec<u8>,
-    size: IntSize,
+    pub(crate) data: Vec<u8>,
+    pub(crate) size: IntSize,
 }
 
 impl Mask {
@@ -54,7 +54,7 @@ impl Mask {
     }
 
     /// Creates a new mask from a `PixmapRef`.
-    pub fn from_pixmap(pixmap: PixmapRef, mask_type: MaskType) -> Self {
+    pub fn from_pixmap<P: Pixel>(pixmap: PixmapRefGeneric<'_, P>, mask_type: MaskType) -> Self {
         let data_len = pixmap.width() as usize * pixmap.height() as usize;
         let mut mask = Mask {
             data: vec![0; data_len],
@@ -65,19 +65,20 @@ impl Mask {
         match mask_type {
             MaskType::Alpha => {
                 for (p, a) in pixmap.pixels().iter().zip(mask.data.as_mut_slice()) {
-                    *a = p.alpha();
+                    *a = p.to_u8().alpha();
                 }
             }
             MaskType::Luminance => {
                 for (p, ma) in pixmap.pixels().iter().zip(mask.data.as_mut_slice()) {
+                    let u8_p = p.to_u8();
                     // Normalize.
-                    let mut r = f32::from(p.red()) / 255.0;
-                    let mut g = f32::from(p.green()) / 255.0;
-                    let mut b = f32::from(p.blue()) / 255.0;
-                    let a = f32::from(p.alpha()) / 255.0;
+                    let mut r = f32::from(u8_p.red()) / 255.0;
+                    let mut g = f32::from(u8_p.green()) / 255.0;
+                    let mut b = f32::from(u8_p.blue()) / 255.0;
+                    let a = f32::from(u8_p.alpha()) / 255.0;
 
                     // Demultiply.
-                    if p.alpha() != 0 {
+                    if u8_p.alpha() != 0 {
                         r /= a;
                         g /= a;
                         b /= a;
@@ -162,6 +163,7 @@ impl Mask {
             size: self.size,
             real_width: self.size.width() as usize,
             data: &mut self.data,
+            _marker: core::marker::PhantomData,
         }
     }
 
@@ -174,6 +176,7 @@ impl Mask {
             size: rect.size(),
             real_width: self.size.width() as usize,
             data: &mut self.data[offset..],
+            _marker: core::marker::PhantomData,
         })
     }
 

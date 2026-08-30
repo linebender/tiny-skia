@@ -148,6 +148,35 @@ impl ScreenIntRect {
     }
 }
 
+pub trait IntSizeExt {
+    /// Converts the current size into a `IntRect` at a provided position.
+    fn to_screen_int_rect(&self, x: u32, y: u32) -> ScreenIntRect;
+}
+
+impl IntSizeExt for IntSize {
+    fn to_screen_int_rect(&self, x: u32, y: u32) -> ScreenIntRect {
+        ScreenIntRect::from_xywh(x, y, self.width(), self.height()).unwrap()
+    }
+}
+
+pub trait IntRectExt {
+    /// Converts into `ScreenIntRect`.
+    ///
+    /// # Checks
+    ///
+    /// - x >= 0
+    /// - y >= 0
+    fn to_screen_int_rect(&self) -> Option<ScreenIntRect>;
+}
+
+impl IntRectExt for IntRect {
+    fn to_screen_int_rect(&self) -> Option<ScreenIntRect> {
+        let x = u32::try_from(self.x()).ok()?;
+        let y = u32::try_from(self.y()).ok()?;
+        ScreenIntRect::from_xywh(x, y, self.width(), self.height())
+    }
+}
+
 #[cfg(test)]
 mod screen_int_rect_tests {
     use super::*;
@@ -177,34 +206,5 @@ mod screen_int_rect_tests {
         assert_eq!(r.height(), 4);
         assert_eq!(r.right(), 4);
         assert_eq!(r.bottom(), 6);
-    }
-}
-
-pub trait IntSizeExt {
-    /// Converts the current size into a `IntRect` at a provided position.
-    fn to_screen_int_rect(&self, x: u32, y: u32) -> ScreenIntRect;
-}
-
-impl IntSizeExt for IntSize {
-    fn to_screen_int_rect(&self, x: u32, y: u32) -> ScreenIntRect {
-        ScreenIntRect::from_xywh(x, y, self.width(), self.height()).unwrap()
-    }
-}
-
-pub trait IntRectExt {
-    /// Converts into `ScreenIntRect`.
-    ///
-    /// # Checks
-    ///
-    /// - x >= 0
-    /// - y >= 0
-    fn to_screen_int_rect(&self) -> Option<ScreenIntRect>;
-}
-
-impl IntRectExt for IntRect {
-    fn to_screen_int_rect(&self) -> Option<ScreenIntRect> {
-        let x = u32::try_from(self.x()).ok()?;
-        let y = u32::try_from(self.y()).ok()?;
-        ScreenIntRect::from_xywh(x, y, self.width(), self.height())
     }
 }

@@ -50,17 +50,21 @@ use arrayvec::ArrayVec;
 
 use tiny_skia_path::NormalizedF32;
 
-use crate::{Color, PremultipliedColor, PremultipliedColorU8, SpreadMode};
-use crate::{PixmapRef, Transform};
+use crate::Transform;
+use crate::{
+    Color, DynamicPixmapRef, Pixel, PixmapRefGeneric, PremultipliedColor, PremultipliedColorU8,
+    SpreadMode,
+};
 
 pub use blitter::RasterPipelineBlitter;
+pub use highp::HighPixel;
 
 use crate::geom::ScreenIntRect;
-use crate::pixmap::SubPixmapMut;
+use crate::pixmap::{SubPixmapMut, SubPixmapMutGeneric};
 use crate::wide::u32x8;
 
 mod blitter;
-#[rustfmt::skip] mod highp;
+#[rustfmt::skip] pub mod highp;
 #[rustfmt::skip] mod lowp;
 
 const MAX_STAGES: usize = 32; // More than enough.
@@ -151,9 +155,9 @@ pub enum Stage {
 
 pub const STAGES_COUNT: usize = Stage::GammaCompressSrgb as usize + 1;
 
-impl PixmapRef<'_> {
+impl<P: Pixel> PixmapRefGeneric<'_, P> {
     #[inline(always)]
-    pub(crate) fn gather(&self, index: u32x8) -> [PremultipliedColorU8; highp::STAGE_WIDTH] {
+    pub(crate) fn gather(&self, index: u32x8) -> [P; highp::STAGE_WIDTH] {
         let index: [u32; 8] = bytemuck::cast(index);
         let pixels = self.pixels();
         [
@@ -169,42 +173,38 @@ impl PixmapRef<'_> {
     }
 }
 
-impl SubPixmapMut<'_> {
+impl<P: Pixel> SubPixmapMutGeneric<'_, P> {
     #[inline(always)]
     pub(crate) fn offset(&self, dx: usize, dy: usize) -> usize {
-        self.real_width * dy + dx
+        (self.real_width * dy + dx) * P::BYTES_PER_PIXEL
     }
 
     #[inline(always)]
-    pub(crate) fn slice_at_xy(&mut self, dx: usize, dy: usize) -> &mut [PremultipliedColorU8] {
+    pub(crate) fn slice_at_xy(&mut self, dx: usize, dy: usize) -> &mut [P] {
         let offset = self.offset(dx, dy);
-        &mut self.pixels_mut()[offset..]
+        bytemuck::cast_slice_mut(&mut self.data[offset..])
     }
 
     #[inline(always)]
     pub(crate) fn slice_mask_at_xy(&mut self, dx: usize, dy: usize) -> &mut [u8] {
-        let offset = self.offset(dx, dy);
+        let offset = self.real_width * dy + dx;
         &mut self.data[offset..]
     }
 
     #[inline(always)]
-    pub(crate) fn slice4_at_xy(
-        &mut self,
-        dx: usize,
-        dy: usize,
-    ) -> &mut [PremultipliedColorU8; highp::STAGE_WIDTH] {
+    pub(crate) fn slice4_at_xy(&mut self, dx: usize, dy: usize) -> &mut [P; highp::STAGE_WIDTH] {
         let offset = self.offset(dx, dy);
-        self.pixels_mut()[offset..].first_chunk_mut().unwrap()
+        bytemuck::from_bytes_mut(
+            &mut self.data[offset..offset + P::BYTES_PER_PIXEL * highp::STAGE_WIDTH],
+        )
     }
 
     #[inline(always)]
-    pub(crate) fn slice16_at_xy(
-        &mut self,
-        dx: usize,
-        dy: usize,
-    ) -> &mut [PremultipliedColorU8; lowp::STAGE_WIDTH] {
+    pub(crate) fn slice16_at_xy(&mut self, dx: usize, dy: usize) -> &mut [P; lowp::STAGE_WIDTH] {
         let offset = self.offset(dx, dy);
-        self.pixels_mut()[offset..].first_chunk_mut().unwrap()
+        bytemuck::from_bytes_mut(
+            &mut self.data[offset..offset + P::BYTES_PER_PIXEL * lowp::STAGE_WIDTH],
+        )
     }
 
     #[inline(always)]
@@ -213,12 +213,14 @@ impl SubPixmapMut<'_> {
         dx: usize,
         dy: usize,
     ) -> &mut [u8; lowp::STAGE_WIDTH] {
-        let offset = self.offset(dx, dy);
-        self.data[offset..].first_chunk_mut().unwrap()
+        let offset = self.real_width * dy + dx;
+        self.data[offset..offset + lowp::STAGE_WIDTH]
+            .first_chunk_mut()
+            .unwrap()
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Copy, Clone, Default, Debug)]
 pub struct AAMaskCtx {
     pub pixels: [u8; 2],
     pub stride: u32,  // can be zero
@@ -252,7 +254,7 @@ impl MaskCtx<'_> {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Context {
     pub current_coverage: f32,
     pub sampler: SamplerCtx,
@@ -395,35 +397,64 @@ impl RasterPipelineBuilder {
         self.ctx.uniform_color = ctx;
     }
 
-    pub fn compile(self) -> RasterPipeline {
+    pub fn compile<P: HighPixel>(self) -> RasterPipelineGeneric<P> {
         if self.stages.is_empty() {
-            return RasterPipeline {
-                kind: RasterPipelineKind::High {
+            return RasterPipelineGeneric {
+                kind: RasterPipelineKindGeneric::High {
                     functions: ArrayVec::new(),
                     tail_functions: ArrayVec::new(),
                 },
                 ctx: Context::default(),
             };
         }
-
         let is_lowp_compatible = self
             .stages
             .iter()
             .all(|stage| !lowp::fn_ptr_eq(lowp::STAGES[*stage as usize], lowp::null_fn));
 
-        if self.force_hq_pipeline || !is_lowp_compatible {
+        #[cfg(feature = "16bpc")]
+        if P::BYTES_PER_PIXEL == 8 {
             let mut functions: ArrayVec<_, MAX_STAGES> = self
                 .stages
                 .iter()
-                .map(|stage| highp::STAGES[*stage as usize] as highp::StageFn)
+                .map(|stage| highp::STAGES_U16[*stage as usize])
+                .collect();
+            functions.push(highp::just_return_u16 as highp::StageFnU16);
+
+            let mut tail_functions = functions.clone();
+            for fun in &mut tail_functions {
+                if highp::fn_ptr_u16(*fun) == highp::fn_ptr_u16(highp::load_dst_u16) {
+                    *fun = highp::load_dst_tail_u16 as highp::StageFnU16;
+                } else if highp::fn_ptr_u16(*fun) == highp::fn_ptr_u16(highp::store_u16) {
+                    *fun = highp::store_tail_u16 as highp::StageFnU16;
+                } else if highp::fn_ptr_u16(*fun) == highp::fn_ptr_u16(highp::load_dst_u8_u16) {
+                    *fun = highp::load_dst_u8_tail_u16 as highp::StageFnU16;
+                } else if highp::fn_ptr_u16(*fun) == highp::fn_ptr_u16(highp::store_u8_u16) {
+                    *fun = highp::store_u8_tail_u16 as highp::StageFnU16;
+                } else if highp::fn_ptr_u16(*fun) == highp::fn_ptr_u16(highp::source_over_rgba_u16)
+                {
+                    *fun = highp::source_over_rgba_tail_u16 as highp::StageFnU16;
+                }
+            }
+
+            return RasterPipelineGeneric {
+                kind: RasterPipelineKindGeneric::HighU16 {
+                    functions,
+                    tail_functions,
+                },
+                ctx: self.ctx,
+            };
+        }
+
+        let is_highp = self.force_hq_pipeline || !is_lowp_compatible;
+        if is_highp {
+            let mut functions: ArrayVec<_, MAX_STAGES> = self
+                .stages
+                .iter()
+                .map(|stage| highp::STAGES[*stage as usize])
                 .collect();
             functions.push(highp::just_return as highp::StageFn);
 
-            // I wasn't able to reproduce Skia's load_8888_/store_8888_ performance.
-            // Skia uses fallthrough switch, which is probably the reason.
-            // In Rust, any branching in load/store code drastically affects the performance.
-            // So instead, we're using two "programs": one for "full stages" and one for "tail stages".
-            // While the only difference is the load/store methods.
             let mut tail_functions = functions.clone();
             for fun in &mut tail_functions {
                 if highp::fn_ptr(*fun) == highp::fn_ptr(highp::load_dst) {
@@ -435,14 +466,12 @@ impl RasterPipelineBuilder {
                 } else if highp::fn_ptr(*fun) == highp::fn_ptr(highp::store_u8) {
                     *fun = highp::store_u8_tail as highp::StageFn;
                 } else if highp::fn_ptr(*fun) == highp::fn_ptr(highp::source_over_rgba) {
-                    // SourceOverRgba calls load/store manually, without the pipeline,
-                    // therefore we have to switch it too.
                     *fun = highp::source_over_rgba_tail as highp::StageFn;
                 }
             }
 
-            RasterPipeline {
-                kind: RasterPipelineKind::High {
+            RasterPipelineGeneric {
+                kind: RasterPipelineKindGeneric::High {
                     functions,
                     tail_functions,
                 },
@@ -456,7 +485,6 @@ impl RasterPipelineBuilder {
                 .collect();
             functions.push(lowp::just_return as lowp::StageFn);
 
-            // See above.
             let mut tail_functions = functions.clone();
             for fun in &mut tail_functions {
                 if lowp::fn_ptr(*fun) == lowp::fn_ptr(lowp::load_dst) {
@@ -468,14 +496,12 @@ impl RasterPipelineBuilder {
                 } else if lowp::fn_ptr(*fun) == lowp::fn_ptr(lowp::store_u8) {
                     *fun = lowp::store_u8_tail as lowp::StageFn;
                 } else if lowp::fn_ptr(*fun) == lowp::fn_ptr(lowp::source_over_rgba) {
-                    // SourceOverRgba calls load/store manually, without the pipeline,
-                    // therefore we have to switch it too.
                     *fun = lowp::source_over_rgba_tail as lowp::StageFn;
                 }
             }
 
-            RasterPipeline {
-                kind: RasterPipelineKind::Low {
+            RasterPipelineGeneric {
+                kind: RasterPipelineKindGeneric::Low {
                     functions,
                     tail_functions,
                 },
@@ -485,36 +511,53 @@ impl RasterPipelineBuilder {
     }
 }
 
-pub enum RasterPipelineKind {
+#[allow(dead_code)]
+pub type RasterPipeline = RasterPipelineGeneric<PremultipliedColorU8>;
+
+pub enum RasterPipelineKindGeneric<P: HighPixel> {
     High {
         functions: ArrayVec<highp::StageFn, MAX_STAGES>,
         tail_functions: ArrayVec<highp::StageFn, MAX_STAGES>,
+    },
+    #[cfg(feature = "16bpc")]
+    HighU16 {
+        functions: ArrayVec<highp::StageFnU16, MAX_STAGES>,
+        tail_functions: ArrayVec<highp::StageFnU16, MAX_STAGES>,
     },
     Low {
         functions: ArrayVec<lowp::StageFn, MAX_STAGES>,
         tail_functions: ArrayVec<lowp::StageFn, MAX_STAGES>,
     },
+    #[allow(dead_code)]
+    _Marker(core::marker::PhantomData<P>),
 }
 
-pub struct RasterPipeline {
-    kind: RasterPipelineKind,
+pub struct RasterPipelineGeneric<P: HighPixel> {
+    kind: RasterPipelineKindGeneric<P>,
     pub ctx: Context,
 }
 
-impl RasterPipeline {
+impl<P: HighPixel> RasterPipelineGeneric<P> {
     pub fn run(
         &mut self,
         rect: &ScreenIntRect,
         aa_mask_ctx: AAMaskCtx,
         mask_ctx: MaskCtx,
-        pixmap_src: PixmapRef,
-        pixmap_dst: &mut SubPixmapMut,
+        pixmap_src: DynamicPixmapRef,
+        pixmap_dst: &mut SubPixmapMutGeneric<'_, P>,
     ) {
         match self.kind {
-            RasterPipelineKind::High {
+            RasterPipelineKindGeneric::High {
                 ref functions,
                 ref tail_functions,
             } => {
+                #[allow(clippy::infallible_destructuring_match)]
+                let src = match pixmap_src {
+                    DynamicPixmapRef::U8(p) => p,
+                    #[cfg(feature = "16bpc")]
+                    DynamicPixmapRef::U16(_) => unreachable!(),
+                };
+                let dst: &mut SubPixmapMut = unsafe { core::mem::transmute(pixmap_dst) };
                 highp::start(
                     functions.as_slice(),
                     tail_functions.as_slice(),
@@ -522,25 +565,42 @@ impl RasterPipeline {
                     aa_mask_ctx,
                     mask_ctx,
                     &mut self.ctx,
-                    pixmap_src,
-                    pixmap_dst,
+                    src,
+                    dst,
                 );
             }
-            RasterPipelineKind::Low {
+            #[cfg(feature = "16bpc")]
+            RasterPipelineKindGeneric::HighU16 {
                 ref functions,
                 ref tail_functions,
             } => {
-                lowp::start(
+                let dst: &mut crate::SubPixmapU16Mut = unsafe { core::mem::transmute(pixmap_dst) };
+                highp::start_u16(
                     functions.as_slice(),
                     tail_functions.as_slice(),
                     rect,
                     aa_mask_ctx,
                     mask_ctx,
                     &mut self.ctx,
-                    // lowp doesn't support pattern, so no `pixmap_src` for it.
+                    pixmap_src,
+                    dst,
+                );
+            }
+            RasterPipelineKindGeneric::Low {
+                ref functions,
+                ref tail_functions,
+            } => {
+                P::run_lowp(
+                    functions.as_slice(),
+                    tail_functions.as_slice(),
+                    rect,
+                    aa_mask_ctx,
+                    mask_ctx,
+                    &mut self.ctx,
                     pixmap_dst,
                 );
             }
+            RasterPipelineKindGeneric::_Marker(_) => unreachable!(),
         }
     }
 }
@@ -567,7 +627,7 @@ mod blend_tests {
                 let mut pixmap = Pixmap::new(1, 1).unwrap();
                 pixmap.fill(Color::from_rgba8(50, 127, 150, 200));
 
-                let pixmap_src = PixmapRef::from_bytes(&[0, 0, 0, 0], 1, 1).unwrap();
+                let pixmap_src = DynamicPixmapRef::dummy();
 
                 let mut p = RasterPipelineBuilder::new();
                 p.set_force_hq_pipeline($is_highp);

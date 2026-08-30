@@ -27,6 +27,15 @@ fn two_stops_linear_tiny_skia(
     pb.close();
     let path = pb.finish().unwrap();
 
+    #[cfg(feature = "16bpc")]
+    if crate::is_16bpc() {
+        let mut pixmap = PixmapU16::new(1000, 1000).unwrap();
+        bencher.iter(|| {
+            pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+        });
+        return;
+    }
+
     let mut pixmap = Pixmap::new(1000, 1000).unwrap();
 
     bencher.iter(|| {
@@ -557,6 +566,15 @@ fn simple_radial_tiny_skia(bencher: &mut Bencher) {
     pb.close();
     let path = pb.finish().unwrap();
 
+    #[cfg(feature = "16bpc")]
+    if crate::is_16bpc() {
+        let mut pixmap = PixmapU16::new(1000, 1000).unwrap();
+        bencher.iter(|| {
+            pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+        });
+        return;
+    }
+
     let mut pixmap = Pixmap::new(1000, 1000).unwrap();
 
     bencher.iter(|| {
@@ -711,6 +729,15 @@ fn two_point_radial_tiny_skia(bencher: &mut Bencher) {
     pb.cubic_to(740.0, 460.0, 440.0, 160.0, 60.0, 60.0);
     pb.close();
     let path = pb.finish().unwrap();
+
+    #[cfg(feature = "16bpc")]
+    if crate::is_16bpc() {
+        let mut pixmap = PixmapU16::new(1000, 1000).unwrap();
+        bencher.iter(|| {
+            pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+        });
+        return;
+    }
 
     let mut pixmap = Pixmap::new(1000, 1000).unwrap();
 

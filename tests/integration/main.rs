@@ -1,3 +1,6 @@
+#[macro_use]
+mod common;
+
 #[rustfmt::skip] mod mask;
 #[rustfmt::skip] mod dash;
 #[rustfmt::skip] mod fill;
@@ -10,3 +13,5 @@
 #[rustfmt::skip] mod png;
 #[rustfmt::skip] mod skia_dash;
 #[rustfmt::skip] mod stroke;
+#[cfg(feature = "16bpc")]
+#[rustfmt::skip] mod u16_precision;

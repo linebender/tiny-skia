@@ -4,7 +4,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-use crate::{BlendMode, Color, LengthU32, Paint, PixmapRef, PremultipliedColorU8, Shader};
+use crate::{
+    BlendMode, Color, DynamicPixmapRef, LengthU32, Paint, Pixel, PremultipliedColorU8, Shader,
+};
 use crate::{ALPHA_U8_OPAQUE, ALPHA_U8_TRANSPARENT};
 
 use crate::alpha_runs::AlphaRun;
@@ -13,25 +15,26 @@ use crate::color::AlphaU8;
 use crate::geom::ScreenIntRect;
 use crate::mask::SubMaskRef;
 use crate::math::LENGTH_U32_ONE;
-use crate::pipeline::{self, RasterPipeline, RasterPipelineBuilder};
-use crate::pixmap::SubPixmapMut;
+use crate::pipeline::highp::HighPixel;
+use crate::pipeline::{self, RasterPipelineBuilder, RasterPipelineGeneric};
+use crate::pixmap::SubPixmapMutGeneric;
 
-pub struct RasterPipelineBlitter<'a, 'b: 'a> {
+pub struct RasterPipelineBlitter<'a, 'b: 'a, P: HighPixel> {
     mask: Option<SubMaskRef<'a>>,
-    pixmap_src: PixmapRef<'a>,
-    pixmap: &'a mut SubPixmapMut<'b>,
-    memset2d_color: Option<PremultipliedColorU8>,
-    blit_anti_h_rp: RasterPipeline,
-    blit_rect_rp: RasterPipeline,
-    blit_mask_rp: RasterPipeline,
+    pixmap_src: DynamicPixmapRef<'a>,
+    pixmap: &'a mut SubPixmapMutGeneric<'b, P>,
+    memset2d_color: Option<P>,
+    blit_anti_h_rp: RasterPipelineGeneric<P>,
+    blit_rect_rp: RasterPipelineGeneric<P>,
+    blit_mask_rp: RasterPipelineGeneric<P>,
     is_mask: bool,
 }
 
-impl<'a, 'b: 'a> RasterPipelineBlitter<'a, 'b> {
+impl<'a, 'b: 'a, P: HighPixel> RasterPipelineBlitter<'a, 'b, P> {
     pub fn new(
         paint: &Paint<'a>,
         mask: Option<SubMaskRef<'a>>,
-        pixmap: &'a mut SubPixmapMut<'b>,
+        pixmap: &'a mut SubPixmapMutGeneric<'b, P>,
     ) -> Option<Self> {
         // Make sure that `mask` has the same size as `pixmap`.
         if let Some(mask) = mask {
@@ -66,14 +69,14 @@ impl<'a, 'b: 'a> RasterPipelineBlitter<'a, 'b> {
             // Unlike Skia, our shader cannot be constant.
             // Therefore there is no need to run a raster pipeline to get shader's color.
             if let Shader::SolidColor(ref color) = paint.shader {
-                memset2d_color = Some(color.premultiply().to_color_u8());
+                memset2d_color = Some(P::from_color(*color));
             }
         };
 
         // Clear is just a transparent color memset.
         if blend_mode == BlendMode::Clear && !paint.anti_alias && mask.is_none() {
             blend_mode = BlendMode::Source;
-            memset2d_color = Some(PremultipliedColorU8::TRANSPARENT);
+            memset2d_color = Some(P::from_color(Color::TRANSPARENT));
         }
 
         let blit_anti_h_rp = {
@@ -196,7 +199,7 @@ impl<'a, 'b: 'a> RasterPipelineBlitter<'a, 'b> {
         let pixmap_src = match paint.shader {
             Shader::Pattern(ref patt) => patt.pixmap,
             // Just a dummy one.
-            _ => PixmapRef::from_bytes(&[0, 0, 0, 0], 1, 1).unwrap(),
+            _ => DynamicPixmapRef::dummy(),
         };
 
         Some(RasterPipelineBlitter {
@@ -210,11 +213,13 @@ impl<'a, 'b: 'a> RasterPipelineBlitter<'a, 'b> {
             is_mask: false,
         })
     }
+}
 
-    pub fn new_mask(pixmap: &'a mut SubPixmapMut<'b>) -> Option<Self> {
+impl<'a, 'b: 'a> RasterPipelineBlitter<'a, 'b, PremultipliedColorU8> {
+    pub fn new_mask(pixmap: &'a mut SubPixmapMutGeneric<'b, PremultipliedColorU8>) -> Option<Self> {
         let color = Color::WHITE.premultiply();
 
-        let memset2d_color = Some(color.to_color_u8());
+        let memset2d_color = Some(PremultipliedColorU8::from_color(Color::WHITE));
 
         let blit_anti_h_rp = {
             let mut p = RasterPipelineBuilder::new();
@@ -243,7 +248,7 @@ impl<'a, 'b: 'a> RasterPipelineBlitter<'a, 'b> {
 
         Some(RasterPipelineBlitter {
             mask: None,
-            pixmap_src: PixmapRef::from_bytes(&[0, 0, 0, 0], 1, 1).unwrap(),
+            pixmap_src: DynamicPixmapRef::dummy(),
             pixmap,
             memset2d_color,
             blit_anti_h_rp,
@@ -254,7 +259,7 @@ impl<'a, 'b: 'a> RasterPipelineBlitter<'a, 'b> {
     }
 }
 
-impl Blitter for RasterPipelineBlitter<'_, '_> {
+impl<P: HighPixel> Blitter for RasterPipelineBlitter<'_, '_, P> {
     fn blit_h(&mut self, x: u32, y: u32, width: LengthU32) {
         let r = ScreenIntRect::from_xywh_safe(x, y, width, LENGTH_U32_ONE);
         self.blit_rect(&r);
@@ -333,25 +338,22 @@ impl Blitter for RasterPipelineBlitter<'_, '_> {
 
     fn blit_rect(&mut self, rect: &ScreenIntRect) {
         if let Some(c) = self.memset2d_color {
+            let real_width = self.pixmap.real_width;
             if self.is_mask {
+                let mask_data: &mut [u8] = bytemuck::cast_slice_mut(self.pixmap.data);
                 for y in 0..rect.height() {
-                    let start = self
-                        .pixmap
-                        .offset(rect.x() as usize, (rect.y() + y) as usize);
+                    let start = real_width * (rect.y() + y) as usize + rect.x() as usize;
                     let end = start + rect.width() as usize;
-                    self.pixmap.data[start..end]
-                        .iter_mut()
-                        .for_each(|p| *p = c.alpha());
+                    mask_data[start..end].fill(255);
                 }
             } else {
                 for y in 0..rect.height() {
-                    let start = self
-                        .pixmap
-                        .offset(rect.x() as usize, (rect.y() + y) as usize);
-                    let end = start + rect.width() as usize;
-                    self.pixmap.pixels_mut()[start..end]
-                        .iter_mut()
-                        .for_each(|p| *p = c);
+                    let start = (real_width * (rect.y() + y) as usize + rect.x() as usize)
+                        * P::BYTES_PER_PIXEL;
+                    let end = start + rect.width() as usize * P::BYTES_PER_PIXEL;
+                    let slice: &mut [P] =
+                        bytemuck::cast_slice_mut(&mut self.pixmap.data[start..end]);
+                    slice.fill(c);
                 }
             }
 

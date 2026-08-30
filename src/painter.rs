@@ -10,8 +10,8 @@ use tiny_skia_path::{PathStroker, Scalar, SCALAR_MAX};
 
 use crate::geom::ScreenIntRect;
 use crate::mask::SubMaskRef;
-use crate::pipeline::{RasterPipelineBlitter, RasterPipelineBuilder};
-use crate::pixmap::SubPixmapMut;
+use crate::pipeline::{HighPixel, RasterPipelineBlitter, RasterPipelineBuilder};
+use crate::pixmap::SubPixmapMutGeneric;
 use crate::scan;
 
 use crate::geom::IntSizeExt;
@@ -105,7 +105,7 @@ impl Paint<'_> {
     }
 }
 
-impl Pixmap {
+impl<P: HighPixel> PixmapGeneric<P> {
     /// Draws a filled rectangle onto the pixmap.
     ///
     /// See [`PixmapMut::fill_rect`](struct.PixmapMut.html#method.fill_rect) for details.
@@ -134,7 +134,7 @@ impl Pixmap {
             .fill_path(path, paint, fill_rule, transform, mask);
     }
 
-    /// Strokes a path.
+    /// Draws a stroked path onto the pixmap.
     ///
     /// See [`PixmapMut::stroke_path`](struct.PixmapMut.html#method.stroke_path) for details.
     pub fn stroke_path(
@@ -149,14 +149,14 @@ impl Pixmap {
             .stroke_path(path, paint, stroke, transform, mask);
     }
 
-    /// Draws a `Pixmap` on top of the current `Pixmap`.
+    /// Draws a pixmap onto the pixmap.
     ///
     /// See [`PixmapMut::draw_pixmap`](struct.PixmapMut.html#method.draw_pixmap) for details.
-    pub fn draw_pixmap(
+    pub fn draw_pixmap<'b>(
         &mut self,
         x: i32,
         y: i32,
-        pixmap: PixmapRef,
+        pixmap: PixmapRefGeneric<'b, P>,
         paint: &PixmapPaint,
         transform: Transform,
         mask: Option<&Mask>,
@@ -165,7 +165,7 @@ impl Pixmap {
             .draw_pixmap(x, y, pixmap, paint, transform, mask);
     }
 
-    /// Applies a masks.
+    /// Applies a mask.
     ///
     /// See [`PixmapMut::apply_mask`](struct.PixmapMut.html#method.apply_mask) for details.
     pub fn apply_mask(&mut self, mask: &Mask) {
@@ -173,7 +173,7 @@ impl Pixmap {
     }
 }
 
-impl PixmapMut<'_> {
+impl<'a, P: HighPixel> PixmapMutGeneric<'a, P> {
     // TODO: accept NonZeroRect?
     /// Draws a filled rectangle onto the pixmap.
     ///
@@ -452,7 +452,7 @@ impl PixmapMut<'_> {
         paint: &Paint,
         line_cap: LineCap,
         mask: Option<SubMaskRef>,
-        pixmap: &mut SubPixmapMut,
+        pixmap: &mut SubPixmapMutGeneric<'_, P>,
     ) {
         let clip = pixmap.size.to_screen_int_rect(0, 0);
         let mut blitter = match RasterPipelineBlitter::new(paint, mask, pixmap) {
@@ -469,35 +469,73 @@ impl PixmapMut<'_> {
     /// Draws a `Pixmap` on top of the current `Pixmap`.
     ///
     /// The same as filling a rectangle with a `pixmap` pattern.
-    pub fn draw_pixmap(
+    pub fn draw_pixmap<'b>(
         &mut self,
         x: i32,
         y: i32,
-        pixmap: PixmapRef,
+        pixmap: PixmapRefGeneric<'b, P>,
         paint: &PixmapPaint,
         transform: Transform,
         mask: Option<&Mask>,
     ) {
         let rect = pixmap.size().to_int_rect(x, y).to_rect();
-
-        // TODO: SkSpriteBlitter
-        // TODO: partially clipped
-        // TODO: clipped out
-
-        // Translate pattern as well as bounds.
         let patt_transform = Transform::from_translate(x as f32, y as f32);
 
+        #[cfg(feature = "16bpc")]
+        if P::BYTES_PER_PIXEL != 4 {
+            if transform.is_identity() && mask.is_none() {
+                let dst_w = self.width() as i32;
+                let dst_h = self.height() as i32;
+                let src_w = pixmap.width() as i32;
+                let src_h = pixmap.height() as i32;
+
+                let x0 = x.max(0);
+                let y0 = y.max(0);
+                let x1 = (x + src_w).min(dst_w);
+                let y1 = (y + src_h).min(dst_h);
+
+                if x0 < x1 && y0 < y1 {
+                    let opacity = paint.opacity.clamp(0.0, 1.0);
+                    let op16 = (opacity * 65535.0 + 0.5) as u32;
+
+                    let src_pixels: &[PremultipliedColorU16] = bytemuck::cast_slice(pixmap.data());
+                    let dst_pixels: &mut [PremultipliedColorU16] =
+                        bytemuck::cast_slice_mut(self.data_mut());
+
+                    let mode = paint.blend_mode;
+                    for cy in y0..y1 {
+                        let src_row = (cy - y) * src_w;
+                        let dst_row = cy * dst_w;
+                        for cx in x0..x1 {
+                            let mut sp = src_pixels[(src_row + (cx - x)) as usize];
+                            if op16 != 65535 {
+                                let r = ((sp.red() as u32 * op16 + 32768) >> 16) as u16;
+                                let g = ((sp.green() as u32 * op16 + 32768) >> 16) as u16;
+                                let b = ((sp.blue() as u32 * op16 + 32768) >> 16) as u16;
+                                let a = ((sp.alpha() as u32 * op16 + 32768) >> 16) as u16;
+                                sp = PremultipliedColorU16::from_rgba_unchecked(r, g, b, a);
+                            }
+
+                            let dp = &mut dst_pixels[(dst_row + cx) as usize];
+                            *dp = blend_u16_op(*dp, sp, mode);
+                        }
+                    }
+                }
+                return;
+            }
+        }
+
         let paint = Paint {
-            shader: Pattern::new(
+            shader: Pattern::from_pixmap(
                 pixmap,
-                SpreadMode::Pad, // Pad, otherwise we will get weird borders overlap.
+                SpreadMode::Pad,
                 paint.quality,
                 paint.opacity,
                 patt_transform,
             ),
             blend_mode: paint.blend_mode,
-            anti_alias: false,        // Skia doesn't use it too.
-            force_hq_pipeline: false, // Pattern will use hq anyway.
+            anti_alias: false,
+            force_hq_pipeline: false,
             colorspace: ColorSpace::default(),
         };
 
@@ -522,7 +560,7 @@ impl PixmapMut<'_> {
         }
 
         // Just a dummy.
-        let pixmap_src = PixmapRef::from_bytes(&[0, 0, 0, 0], 1, 1).unwrap();
+        let pixmap_src = DynamicPixmapRef::dummy();
 
         let mut p = RasterPipelineBuilder::new();
         p.push(pipeline::Stage::LoadMaskU8);
@@ -674,6 +712,471 @@ impl Iterator for DrawTiler {
         }
 
         None
+    }
+}
+
+#[cfg(feature = "16bpc")]
+impl DynamicPixmap {
+    /// Draws a filled rectangle onto the dynamic pixmap.
+    pub fn fill_rect(
+        &mut self,
+        rect: Rect,
+        paint: &Paint,
+        transform: Transform,
+        mask: Option<&Mask>,
+    ) {
+        match self {
+            DynamicPixmap::U8(p) => p.fill_rect(rect, paint, transform, mask),
+            DynamicPixmap::U16(p) => p.fill_rect(rect, paint, transform, mask),
+        }
+    }
+
+    /// Draws a filled path onto the dynamic pixmap.
+    pub fn fill_path(
+        &mut self,
+        path: &Path,
+        paint: &Paint,
+        fill_rule: FillRule,
+        transform: Transform,
+        mask: Option<&Mask>,
+    ) {
+        match self {
+            DynamicPixmap::U8(p) => p.fill_path(path, paint, fill_rule, transform, mask),
+            DynamicPixmap::U16(p) => p.fill_path(path, paint, fill_rule, transform, mask),
+        }
+    }
+
+    /// Strokes a path onto the dynamic pixmap.
+    pub fn stroke_path(
+        &mut self,
+        path: &Path,
+        paint: &Paint,
+        stroke: &Stroke,
+        transform: Transform,
+        mask: Option<&Mask>,
+    ) {
+        match self {
+            DynamicPixmap::U8(p) => p.stroke_path(path, paint, stroke, transform, mask),
+            DynamicPixmap::U16(p) => p.stroke_path(path, paint, stroke, transform, mask),
+        }
+    }
+
+    /// Draws a `Pixmap` on top of the dynamic pixmap.
+    pub fn draw_pixmap(
+        &mut self,
+        x: i32,
+        y: i32,
+        pixmap: PixmapRef,
+        paint: &PixmapPaint,
+        transform: Transform,
+        mask: Option<&Mask>,
+    ) {
+        match self {
+            DynamicPixmap::U8(p) => p.draw_pixmap(x, y, pixmap, paint, transform, mask),
+            DynamicPixmap::U16(p) => {
+                let u8_pixels = pixmap.pixels();
+                let mut u16_pixmap = PixmapU16::new(pixmap.width(), pixmap.height()).unwrap();
+                for (src, dst) in u8_pixels.iter().zip(u16_pixmap.pixels_mut().iter_mut()) {
+                    *dst = PremultipliedColorU16::from_color_u8(*src);
+                }
+                p.draw_pixmap(x, y, u16_pixmap.as_ref(), paint, transform, mask);
+            }
+        }
+    }
+
+    /// Applies a mask to the dynamic pixmap.
+    pub fn apply_mask(&mut self, mask: &Mask) {
+        match self {
+            DynamicPixmap::U8(p) => p.apply_mask(mask),
+            DynamicPixmap::U16(p) => p.apply_mask(mask),
+        }
+    }
+}
+
+#[cfg(feature = "16bpc")]
+impl DynamicPixmapMut<'_> {
+    /// Draws a filled rectangle onto the dynamic mutable pixmap.
+    pub fn fill_rect(
+        &mut self,
+        rect: Rect,
+        paint: &Paint,
+        transform: Transform,
+        mask: Option<&Mask>,
+    ) {
+        match self {
+            DynamicPixmapMut::U8(p) => p.fill_rect(rect, paint, transform, mask),
+            DynamicPixmapMut::U16(p) => p.fill_rect(rect, paint, transform, mask),
+        }
+    }
+
+    /// Draws a filled path onto the dynamic mutable pixmap.
+    pub fn fill_path(
+        &mut self,
+        path: &Path,
+        paint: &Paint,
+        fill_rule: FillRule,
+        transform: Transform,
+        mask: Option<&Mask>,
+    ) {
+        match self {
+            DynamicPixmapMut::U8(p) => p.fill_path(path, paint, fill_rule, transform, mask),
+            DynamicPixmapMut::U16(p) => p.fill_path(path, paint, fill_rule, transform, mask),
+        }
+    }
+
+    /// Strokes a path onto the dynamic mutable pixmap.
+    pub fn stroke_path(
+        &mut self,
+        path: &Path,
+        paint: &Paint,
+        stroke: &Stroke,
+        transform: Transform,
+        mask: Option<&Mask>,
+    ) {
+        match self {
+            DynamicPixmapMut::U8(p) => p.stroke_path(path, paint, stroke, transform, mask),
+            DynamicPixmapMut::U16(p) => p.stroke_path(path, paint, stroke, transform, mask),
+        }
+    }
+
+    /// Draws a `Pixmap` on top of the dynamic mutable pixmap.
+    pub fn draw_pixmap(
+        &mut self,
+        x: i32,
+        y: i32,
+        pixmap: PixmapRef,
+        paint: &PixmapPaint,
+        transform: Transform,
+        mask: Option<&Mask>,
+    ) {
+        match self {
+            DynamicPixmapMut::U8(p) => p.draw_pixmap(x, y, pixmap, paint, transform, mask),
+            DynamicPixmapMut::U16(p) => {
+                let u8_pixels = pixmap.pixels();
+                let mut u16_pixmap = PixmapU16::new(pixmap.width(), pixmap.height()).unwrap();
+                for (src, dst) in u8_pixels.iter().zip(u16_pixmap.pixels_mut().iter_mut()) {
+                    *dst = PremultipliedColorU16::from_color_u8(*src);
+                }
+                p.draw_pixmap(x, y, u16_pixmap.as_ref(), paint, transform, mask);
+            }
+        }
+    }
+
+    /// Applies a mask to the dynamic mutable pixmap.
+    pub fn apply_mask(&mut self, mask: &Mask) {
+        match self {
+            DynamicPixmapMut::U8(p) => p.apply_mask(mask),
+            DynamicPixmapMut::U16(p) => p.apply_mask(mask),
+        }
+    }
+}
+
+#[cfg(feature = "16bpc")]
+#[inline]
+fn blend_u16_op(
+    dst: PremultipliedColorU16,
+    src: PremultipliedColorU16,
+    mode: BlendMode,
+) -> PremultipliedColorU16 {
+    match mode {
+        BlendMode::Source => src,
+        BlendMode::Destination => dst,
+        BlendMode::Clear => PremultipliedColorU16::TRANSPARENT,
+        BlendMode::SourceOver => {
+            let inv_a = 65535 - src.alpha() as u32;
+            let r = src.red() as u32 + ((dst.red() as u32 * inv_a + 32768) >> 16);
+            let g = src.green() as u32 + ((dst.green() as u32 * inv_a + 32768) >> 16);
+            let b = src.blue() as u32 + ((dst.blue() as u32 * inv_a + 32768) >> 16);
+            let a = src.alpha() as u32 + ((dst.alpha() as u32 * inv_a + 32768) >> 16);
+            PremultipliedColorU16::from_rgba_unchecked(
+                r.min(65535) as u16,
+                g.min(65535) as u16,
+                b.min(65535) as u16,
+                a.min(65535) as u16,
+            )
+        }
+        BlendMode::DestinationOver => {
+            let inv_a = 65535 - dst.alpha() as u32;
+            let r = dst.red() as u32 + ((src.red() as u32 * inv_a + 32768) >> 16);
+            let g = dst.green() as u32 + ((src.green() as u32 * inv_a + 32768) >> 16);
+            let b = dst.blue() as u32 + ((src.blue() as u32 * inv_a + 32768) >> 16);
+            let a = dst.alpha() as u32 + ((src.alpha() as u32 * inv_a + 32768) >> 16);
+            PremultipliedColorU16::from_rgba_unchecked(
+                r.min(65535) as u16,
+                g.min(65535) as u16,
+                b.min(65535) as u16,
+                a.min(65535) as u16,
+            )
+        }
+        BlendMode::SourceIn => {
+            let a = dst.alpha() as u32;
+            let r = ((src.red() as u32 * a + 32768) >> 16) as u16;
+            let g = ((src.green() as u32 * a + 32768) >> 16) as u16;
+            let b = ((src.blue() as u32 * a + 32768) >> 16) as u16;
+            let a = ((src.alpha() as u32 * a + 32768) >> 16) as u16;
+            PremultipliedColorU16::from_rgba_unchecked(r, g, b, a)
+        }
+        BlendMode::DestinationIn => {
+            let a = src.alpha() as u32;
+            let r = ((dst.red() as u32 * a + 32768) >> 16) as u16;
+            let g = ((dst.green() as u32 * a + 32768) >> 16) as u16;
+            let b = ((dst.blue() as u32 * a + 32768) >> 16) as u16;
+            let a = ((dst.alpha() as u32 * a + 32768) >> 16) as u16;
+            PremultipliedColorU16::from_rgba_unchecked(r, g, b, a)
+        }
+        BlendMode::SourceOut => {
+            let inv_a = 65535 - dst.alpha() as u32;
+            let r = ((src.red() as u32 * inv_a + 32768) >> 16) as u16;
+            let g = ((src.green() as u32 * inv_a + 32768) >> 16) as u16;
+            let b = ((src.blue() as u32 * inv_a + 32768) >> 16) as u16;
+            let a = ((src.alpha() as u32 * inv_a + 32768) >> 16) as u16;
+            PremultipliedColorU16::from_rgba_unchecked(r, g, b, a)
+        }
+        BlendMode::DestinationOut => {
+            let inv_a = 65535 - src.alpha() as u32;
+            let r = ((dst.red() as u32 * inv_a + 32768) >> 16) as u16;
+            let g = ((dst.green() as u32 * inv_a + 32768) >> 16) as u16;
+            let b = ((dst.blue() as u32 * inv_a + 32768) >> 16) as u16;
+            let a = ((dst.alpha() as u32 * inv_a + 32768) >> 16) as u16;
+            PremultipliedColorU16::from_rgba_unchecked(r, g, b, a)
+        }
+        BlendMode::SourceAtop => {
+            let da = dst.alpha() as u32;
+            let inv_sa = 65535 - src.alpha() as u32;
+            let r = ((src.red() as u32 * da + dst.red() as u32 * inv_sa + 32768) >> 16) as u16;
+            let g = ((src.green() as u32 * da + dst.green() as u32 * inv_sa + 32768) >> 16) as u16;
+            let b = ((src.blue() as u32 * da + dst.blue() as u32 * inv_sa + 32768) >> 16) as u16;
+            let a = dst.alpha();
+            PremultipliedColorU16::from_rgba_unchecked(r, g, b, a)
+        }
+        BlendMode::DestinationAtop => {
+            let sa = src.alpha() as u32;
+            let inv_da = 65535 - dst.alpha() as u32;
+            let r = ((dst.red() as u32 * sa + src.red() as u32 * inv_da + 32768) >> 16) as u16;
+            let g = ((dst.green() as u32 * sa + src.green() as u32 * inv_da + 32768) >> 16) as u16;
+            let b = ((dst.blue() as u32 * sa + src.blue() as u32 * inv_da + 32768) >> 16) as u16;
+            let a = src.alpha();
+            PremultipliedColorU16::from_rgba_unchecked(r, g, b, a)
+        }
+        BlendMode::Xor => {
+            let inv_da = 65535 - dst.alpha() as u32;
+            let inv_sa = 65535 - src.alpha() as u32;
+            let r = ((src.red() as u32 * inv_da + dst.red() as u32 * inv_sa + 32768) >> 16) as u16;
+            let g =
+                ((src.green() as u32 * inv_da + dst.green() as u32 * inv_sa + 32768) >> 16) as u16;
+            let b =
+                ((src.blue() as u32 * inv_da + dst.blue() as u32 * inv_sa + 32768) >> 16) as u16;
+            let a =
+                ((src.alpha() as u32 * inv_da + dst.alpha() as u32 * inv_sa + 32768) >> 16) as u16;
+            PremultipliedColorU16::from_rgba_unchecked(r, g, b, a)
+        }
+        BlendMode::Plus => {
+            let r = (dst.red() as u32 + src.red() as u32).min(65535) as u16;
+            let g = (dst.green() as u32 + src.green() as u32).min(65535) as u16;
+            let b = (dst.blue() as u32 + src.blue() as u32).min(65535) as u16;
+            let a = (dst.alpha() as u32 + src.alpha() as u32).min(65535) as u16;
+            PremultipliedColorU16::from_rgba_unchecked(r, g, b, a)
+        }
+        _ => {
+            let sr = src.red() as f32 / 65535.0;
+            let sg = src.green() as f32 / 65535.0;
+            let sb = src.blue() as f32 / 65535.0;
+            let sa = src.alpha() as f32 / 65535.0;
+
+            let dr = dst.red() as f32 / 65535.0;
+            let dg = dst.green() as f32 / 65535.0;
+            let db = dst.blue() as f32 / 65535.0;
+            let da = dst.alpha() as f32 / 65535.0;
+
+            let (r, g, b) = match mode {
+                BlendMode::Hue => {
+                    let (mut rr, mut gg, mut bb) = (sr * sa, sg * sa, sb * sa);
+                    set_sat(&mut rr, &mut gg, &mut bb, sat(dr, dg, db) * sa);
+                    set_lum(&mut rr, &mut gg, &mut bb, lum(dr, dg, db) * sa);
+                    clip_color(&mut rr, &mut gg, &mut bb, sa * da);
+                    (
+                        sr * (1.0 - da) + dr * (1.0 - sa) + rr,
+                        sg * (1.0 - da) + dg * (1.0 - sa) + gg,
+                        sb * (1.0 - da) + db * (1.0 - sa) + bb,
+                    )
+                }
+                BlendMode::Saturation => {
+                    let (mut rr, mut gg, mut bb) = (dr * sa, dg * sa, db * sa);
+                    set_sat(&mut rr, &mut gg, &mut bb, sat(sr, sg, sb) * da);
+                    set_lum(&mut rr, &mut gg, &mut bb, lum(dr, dg, db) * sa);
+                    clip_color(&mut rr, &mut gg, &mut bb, sa * da);
+                    (
+                        sr * (1.0 - da) + dr * (1.0 - sa) + rr,
+                        sg * (1.0 - da) + dg * (1.0 - sa) + gg,
+                        sb * (1.0 - da) + db * (1.0 - sa) + bb,
+                    )
+                }
+                BlendMode::Color => {
+                    let (mut rr, mut gg, mut bb) = (sr * da, sg * da, sb * da);
+                    set_lum(&mut rr, &mut gg, &mut bb, lum(dr, dg, db) * sa);
+                    clip_color(&mut rr, &mut gg, &mut bb, sa * da);
+                    (
+                        sr * (1.0 - da) + dr * (1.0 - sa) + rr,
+                        sg * (1.0 - da) + dg * (1.0 - sa) + gg,
+                        sb * (1.0 - da) + db * (1.0 - sa) + bb,
+                    )
+                }
+                BlendMode::Luminosity => {
+                    let (mut rr, mut gg, mut bb) = (dr * sa, dg * sa, db * sa);
+                    set_lum(&mut rr, &mut gg, &mut bb, lum(sr, sg, sb) * da);
+                    clip_color(&mut rr, &mut gg, &mut bb, sa * da);
+                    (
+                        sr * (1.0 - da) + dr * (1.0 - sa) + rr,
+                        sg * (1.0 - da) + dg * (1.0 - sa) + gg,
+                        sb * (1.0 - da) + db * (1.0 - sa) + bb,
+                    )
+                }
+                _ => {
+                    let blend_ch = |s: f32, d: f32| -> f32 {
+                        match mode {
+                            BlendMode::Multiply => s * (1.0 - da) + d * (1.0 - sa) + s * d,
+                            BlendMode::Screen => s + d - s * d,
+                            BlendMode::Darken => s + d - (s * da).max(d * sa),
+                            BlendMode::Lighten => s + d - (s * da).min(d * sa),
+                            BlendMode::Difference => s + d - 2.0 * (s * da).min(d * sa),
+                            BlendMode::Exclusion => s + d - 2.0 * s * d,
+                            BlendMode::ColorDodge => {
+                                if d <= 0.0 {
+                                    s * (1.0 - da)
+                                } else if s >= sa {
+                                    s + d * (1.0 - sa)
+                                } else {
+                                    sa * da.min((d * sa) / (sa - s))
+                                        + s * (1.0 - da)
+                                        + d * (1.0 - sa)
+                                }
+                            }
+                            BlendMode::ColorBurn => {
+                                if d >= da {
+                                    d + s * (1.0 - da)
+                                } else if s <= 0.0 {
+                                    d * (1.0 - sa)
+                                } else {
+                                    sa * (da - da.min((da - d) * sa / s))
+                                        + s * (1.0 - da)
+                                        + d * (1.0 - sa)
+                                }
+                            }
+                            BlendMode::Overlay => {
+                                let b = if 2.0 * d <= da {
+                                    2.0 * s * d
+                                } else {
+                                    sa * da - 2.0 * (da - d) * (sa - s)
+                                };
+                                s * (1.0 - da) + d * (1.0 - sa) + b
+                            }
+                            BlendMode::HardLight => {
+                                let b = if 2.0 * s <= sa {
+                                    2.0 * s * d
+                                } else {
+                                    sa * da - 2.0 * (da - d) * (sa - s)
+                                };
+                                s * (1.0 - da) + d * (1.0 - sa) + b
+                            }
+                            BlendMode::SoftLight => {
+                                let m = if da > 0.0 { d / da } else { 0.0 };
+                                let s2 = 2.0 * s;
+                                let m4 = 4.0 * m;
+                                let dark_src = d * (sa + (s2 - sa) * (1.0 - m));
+                                let dark_dst = (m4 * m4 + m4) * (m - 1.0) + 7.0 * m;
+                                let lite_dst = m.sqrt() - m;
+                                let lite_src = d * sa
+                                    + da * (s2 - sa)
+                                        * if 4.0 * d <= da { dark_dst } else { lite_dst };
+                                s * (1.0 - da)
+                                    + d * (1.0 - sa)
+                                    + if s2 <= sa { dark_src } else { lite_src }
+                            }
+                            _ => s + d * (1.0 - sa),
+                        }
+                    };
+                    (blend_ch(sr, dr), blend_ch(sg, dg), blend_ch(sb, db))
+                }
+            };
+
+            let a = sa + da - sa * da;
+
+            let r16 = (r.clamp(0.0, 1.0) * 65535.0 + 0.5) as u16;
+            let g16 = (g.clamp(0.0, 1.0) * 65535.0 + 0.5) as u16;
+            let b16 = (b.clamp(0.0, 1.0) * 65535.0 + 0.5) as u16;
+            let a16 = (a.clamp(0.0, 1.0) * 65535.0 + 0.5) as u16;
+            PremultipliedColorU16::from_rgba_unchecked(r16, g16, b16, a16)
+        }
+    }
+}
+
+#[cfg(feature = "16bpc")]
+#[inline(always)]
+fn sat(r: f32, g: f32, b: f32) -> f32 {
+    r.max(g.max(b)) - r.min(g.min(b))
+}
+
+#[cfg(feature = "16bpc")]
+#[inline(always)]
+fn lum(r: f32, g: f32, b: f32) -> f32 {
+    r * 0.30 + g * 0.59 + b * 0.11
+}
+
+#[cfg(feature = "16bpc")]
+#[inline(always)]
+fn set_sat(r: &mut f32, g: &mut f32, b: &mut f32, s: f32) {
+    let mn = r.min(g.min(*b));
+    let mx = r.max(g.max(*b));
+    let sat = mx - mn;
+    if sat > 0.0 {
+        *r = (*r - mn) * s / sat;
+        *g = (*g - mn) * s / sat;
+        *b = (*b - mn) * s / sat;
+    } else {
+        *r = 0.0;
+        *g = 0.0;
+        *b = 0.0;
+    }
+}
+
+#[cfg(feature = "16bpc")]
+#[inline(always)]
+fn set_lum(r: &mut f32, g: &mut f32, b: &mut f32, l: f32) {
+    let diff = l - lum(*r, *g, *b);
+    *r += diff;
+    *g += diff;
+    *b += diff;
+}
+
+#[cfg(feature = "16bpc")]
+#[inline(always)]
+fn clip_color(r: &mut f32, g: &mut f32, b: &mut f32, a: f32) {
+    let mn = r.min(g.min(*b));
+    let mx = r.max(g.max(*b));
+    let l = lum(*r, *g, *b);
+
+    if mn < 0.0 {
+        if (l - mn).abs() > 0.0 {
+            *r = l + (*r - l) * l / (l - mn);
+            *g = l + (*g - l) * l / (l - mn);
+            *b = l + (*b - l) * l / (l - mn);
+        } else {
+            *r = l;
+            *g = l;
+            *b = l;
+        }
+    }
+
+    if mx > a {
+        if (mx - l).abs() > 0.0 {
+            *r = l + (*r - l) * (a - l) / (mx - l);
+            *g = l + (*g - l) * (a - l) / (mx - l);
+            *b = l + (*b - l) * (a - l) / (mx - l);
+        } else {
+            *r = l;
+            *g = l;
+            *b = l;
+        }
     }
 }
 
