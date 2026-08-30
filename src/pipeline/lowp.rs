@@ -58,6 +58,17 @@ pub struct Pipeline<'a, 'b: 'a> {
     dy: usize,
 }
 
+impl core::fmt::Debug for Pipeline<'_, '_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Pipeline")
+            .field("index", &self.index)
+            .field("tail", &self.tail)
+            .field("dx", &self.dx)
+            .field("dy", &self.dy)
+            .finish()
+    }
+}
+
 impl Pipeline<'_, '_> {
     #[inline(always)]
     fn next_stage(&mut self) {

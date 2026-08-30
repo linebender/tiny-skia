@@ -24,6 +24,25 @@ pub fn bound<T: Ord + Copy>(min: T, value: T, max: T) -> T {
     max.min(value).max(min)
 }
 
+/// Computes `(a * b + 0x8000) / 65535` rounded to nearest integer for `a, b <= 65535`.
+///
+/// Bit-exact with rounding division, computed entirely within 32-bit registers.
+#[cfg(feature = "16bpc")]
+#[inline(always)]
+pub fn mul_div65535_round(a: u32, b: u32) -> u32 {
+    let prod = a * b + 0x8000;
+    (prod + (prod >> 16)) >> 16
+}
+
+/// Computes `(x + 0x8000) / 65535` rounded to nearest integer for `x <= 65535 * 65535`.
+#[cfg(feature = "16bpc")]
+#[inline(always)]
+#[allow(dead_code)]
+pub fn div65535_round(x: u32) -> u32 {
+    let temp = x + 0x8000;
+    (temp + (temp >> 16)) >> 16
+}
+
 // Skia cites http://www.machinedlearnings.com/2011/06/fast-approximate-logarithm-exponential.html
 pub fn approx_powf(x: f32, y: f32) -> f32 {
     if x == 0.0 || x == 1.0 {

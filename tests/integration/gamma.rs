@@ -1,7 +1,6 @@
 use tiny_skia::*;
 
-#[test]
-fn gamma() {
+test_raster!(gamma, 500, 60, "tests/images/gamma.png", |pixmap| {
     let mut paint = Paint::default();
     let stroke = Stroke::default();
     let wide = Stroke {
@@ -35,7 +34,6 @@ fn gamma() {
     )
     .unwrap();
 
-    let mut pixmap = Pixmap::new(500, 60).unwrap();
     pixmap.fill(Color::BLACK);
 
     let mut pb = PathBuilder::new();
@@ -65,8 +63,4 @@ fn gamma() {
         paint.shader = grad3.clone();
         pixmap.stroke_path(&path, &paint, &wide, xf, None);
     }
-
-    // pixmap.save_png("tests/images/gamma.png").unwrap();
-    let expected = Pixmap::load_png("tests/images/gamma.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
+});

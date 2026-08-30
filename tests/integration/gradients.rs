@@ -1,7 +1,6 @@
 use tiny_skia::*;
 
-#[test]
-fn two_stops_linear_pad_lq() {
+test_raster!(two_stops_linear_pad_lq, 200, 200, "tests/images/gradients/two-stops-linear-pad-lq.png", |pixmap| {
     let mut paint = Paint::default();
     paint.anti_alias = false;
     paint.shader = LinearGradient::new(
@@ -17,15 +16,11 @@ fn two_stops_linear_pad_lq() {
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/gradients/two-stops-linear-pad-lq.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn two_stops_linear_repeat_lq() {
+test_raster!(two_stops_linear_repeat_lq, 200, 200, "tests/images/gradients/two-stops-linear-repeat-lq.png", |pixmap| {
     let mut paint = Paint::default();
     paint.anti_alias = false;
     paint.shader = LinearGradient::new(
@@ -41,15 +36,11 @@ fn two_stops_linear_repeat_lq() {
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/gradients/two-stops-linear-repeat-lq.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn two_stops_linear_reflect_lq() {
+test_raster!(two_stops_linear_reflect_lq, 200, 200, "tests/images/gradients/two-stops-linear-reflect-lq.png", |pixmap| {
     let mut paint = Paint::default();
     paint.anti_alias = false;
     paint.shader = LinearGradient::new(
@@ -65,15 +56,11 @@ fn two_stops_linear_reflect_lq() {
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/gradients/two-stops-linear-reflect-lq.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn three_stops_evenly_spaced_lq() {
+test_raster!(three_stops_evenly_spaced_lq, 200, 200, "tests/images/gradients/three-stops-evenly-spaced-lq.png", |pixmap| {
     let mut paint = Paint::default();
     paint.anti_alias = false;
     paint.shader = LinearGradient::new(
@@ -91,15 +78,11 @@ fn three_stops_evenly_spaced_lq() {
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/gradients/three-stops-evenly-spaced-lq.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn two_stops_unevenly_spaced_lq() {
+test_raster!(two_stops_unevenly_spaced_lq, 200, 200, "tests/images/gradients/two-stops-unevenly-spaced-lq.png", |pixmap| {
     let mut paint = Paint::default();
     paint.anti_alias = false;
     paint.shader = LinearGradient::new(
@@ -116,15 +99,11 @@ fn two_stops_unevenly_spaced_lq() {
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/gradients/two-stops-unevenly-spaced-lq.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn two_stops_linear_pad_hq() {
+test_raster!(two_stops_linear_pad_hq, 200, 200, "tests/images/gradients/two-stops-linear-pad-hq.png", |pixmap| {
     let mut paint = Paint::default();
     paint.force_hq_pipeline = true;
     paint.anti_alias = false;
@@ -141,15 +120,11 @@ fn two_stops_linear_pad_hq() {
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/gradients/two-stops-linear-pad-hq.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn two_stops_linear_repeat_hq() {
+test_raster!(two_stops_linear_repeat_hq, 200, 200, "tests/images/gradients/two-stops-linear-repeat-hq.png", |pixmap| {
     let mut paint = Paint::default();
     paint.force_hq_pipeline = true;
     paint.anti_alias = false;
@@ -166,15 +141,11 @@ fn two_stops_linear_repeat_hq() {
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/gradients/two-stops-linear-repeat-hq.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn two_stops_linear_reflect_hq() {
+test_raster!(two_stops_linear_reflect_hq, 200, 200, "tests/images/gradients/two-stops-linear-reflect-hq.png", |pixmap| {
     let mut paint = Paint::default();
     paint.force_hq_pipeline = true;
     paint.anti_alias = false;
@@ -191,15 +162,11 @@ fn two_stops_linear_reflect_hq() {
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/gradients/two-stops-linear-reflect-hq.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn three_stops_evenly_spaced_hq() {
+test_raster!(three_stops_evenly_spaced_hq, 200, 200, "tests/images/gradients/three-stops-evenly-spaced-hq.png", |pixmap| {
     let mut paint = Paint::default();
     paint.force_hq_pipeline = true;
     paint.anti_alias = false;
@@ -218,15 +185,11 @@ fn three_stops_evenly_spaced_hq() {
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/gradients/three-stops-evenly-spaced-hq.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn two_stops_unevenly_spaced_hq() {
+test_raster!(two_stops_unevenly_spaced_hq, 200, 200, "tests/images/gradients/two-stops-unevenly-spaced-hq.png", |pixmap| {
     let mut paint = Paint::default();
     paint.force_hq_pipeline = true;
     paint.anti_alias = false;
@@ -244,18 +207,14 @@ fn two_stops_unevenly_spaced_hq() {
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
-
-    let expected = Pixmap::load_png("tests/images/gradients/two-stops-unevenly-spaced-hq.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
+});
 
 // The radial gradient is only supported by the high quality pipeline.
 // Therefore we do not have a lq/hq split.
 
-#[test]
-fn well_behaved_radial() {
+test_raster!(well_behaved_radial, 200, 200, "tests/images/gradients/well-behaved-radial.png", |pixmap| {
     let mut paint = Paint::default();
     paint.anti_alias = false;
     paint.shader = RadialGradient::new(
@@ -273,15 +232,11 @@ fn well_behaved_radial() {
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/gradients/well-behaved-radial.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn focal_on_circle_radial() {
+test_raster!(focal_on_circle_radial, 200, 200, "tests/images/gradients/focal-on-circle-radial.png", |pixmap| {
     let mut paint = Paint::default();
     paint.anti_alias = false;
     paint.shader = RadialGradient::new(
@@ -299,15 +254,11 @@ fn focal_on_circle_radial() {
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/gradients/focal-on-circle-radial.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn conical_greater_radial() {
+test_raster!(conical_greater_radial, 200, 200, "tests/images/gradients/conical-greater-radial.png", |pixmap| {
     let mut paint = Paint::default();
     paint.anti_alias = false;
     paint.shader = RadialGradient::new(
@@ -325,15 +276,11 @@ fn conical_greater_radial() {
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/gradients/conical-greater-radial.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn simple_radial_lq() {
+test_raster!(simple_radial_lq, 200, 200, "tests/images/gradients/simple-radial-lq.png", |pixmap| {
     let mut paint = Paint::default();
     paint.anti_alias = false;
     paint.shader = RadialGradient::new(
@@ -351,15 +298,11 @@ fn simple_radial_lq() {
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/gradients/simple-radial-lq.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn simple_radial_hq() {
+test_raster!(simple_radial_hq, 200, 200, "tests/images/gradients/simple-radial-hq.png", |pixmap| {
     let mut paint = Paint::default();
     paint.force_hq_pipeline = true;
     paint.anti_alias = false;
@@ -378,15 +321,11 @@ fn simple_radial_hq() {
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/gradients/simple-radial-hq.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn simple_radial_with_ts_hq() {
+test_raster!(simple_radial_with_ts_hq, 200, 200, "tests/images/gradients/simple-radial-with-ts-hq.png", |pixmap| {
     let mut paint = Paint::default();
     paint.force_hq_pipeline = true;
     paint.anti_alias = false;
@@ -405,17 +344,13 @@ fn simple_radial_with_ts_hq() {
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
-
-    let expected = Pixmap::load_png("tests/images/gradients/simple-radial-with-ts-hq.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
+});
 
 // Gradient doesn't add the Premultiply stage when all stops are opaque.
 // But it checks colors only on creation, so we have to recheck them after calling `apply_opacity`.
-#[test]
-fn global_opacity() {
+test_raster!(global_opacity, 200, 200, "tests/images/gradients/global-opacity.png", |pixmap| {
     let mut paint = Paint::default();
     paint.anti_alias = false;
     paint.shader = RadialGradient::new(
@@ -434,15 +369,11 @@ fn global_opacity() {
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/gradients/global-opacity.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn strip_gradient() {
+test_raster!(strip_gradient, 200, 200, "tests/images/gradients/strip-gradient.png", |pixmap| {
     // Equal radii, different centers creates a Strip gradient
     let mut paint = Paint::default();
     paint.anti_alias = false;
@@ -461,15 +392,11 @@ fn strip_gradient() {
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/gradients/strip-gradient.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn concentric_radial() {
+test_raster!(concentric_radial, 200, 200, "tests/images/gradients/concentric-radial.png", |pixmap| {
     // Same center, non-zero start radius (concentric gradient)
     let mut paint = Paint::default();
     paint.anti_alias = false;
@@ -488,15 +415,11 @@ fn concentric_radial() {
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/gradients/concentric-radial.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn conical_smaller_radial() {
+test_raster!(conical_smaller_radial, 200, 200, "tests/images/gradients/conical-smaller-radial.png", |pixmap| {
     // Configuration that triggers XYTo2PtConicalSmaller stage
     // r0=60, r1=30, distance=50
     // r0_norm=1.2, r1_norm=0.6, focal_x = 1.2/0.6 = 2.0 > 1.0
@@ -519,15 +442,11 @@ fn conical_smaller_radial() {
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/gradients/conical-smaller-radial.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn sweep_gradient() {
+test_raster!(sweep_gradient, 200, 200, "tests/images/gradients/sweep-gradient.png", |pixmap| {
     let mut paint = Paint::default();
     paint.anti_alias = false;
     paint.shader = SweepGradient::new(
@@ -545,7 +464,7 @@ fn sweep_gradient() {
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    
     pixmap.fill_path(
         &path,
         &paint,
@@ -553,13 +472,9 @@ fn sweep_gradient() {
         Transform::identity(),
         None,
     );
+});
 
-    let expected = Pixmap::load_png("tests/images/gradients/sweep-gradient.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn sweep_gradient_full() {
+test_raster!(sweep_gradient_full, 200, 200, "tests/images/gradients/sweep-gradient-full.png", |pixmap| {
     let mut paint = Paint::default();
     paint.anti_alias = false;
     paint.shader = SweepGradient::new(
@@ -577,7 +492,7 @@ fn sweep_gradient_full() {
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
+    
     pixmap.fill_path(
         &path,
         &paint,
@@ -585,7 +500,4 @@ fn sweep_gradient_full() {
         Transform::identity(),
         None,
     );
-
-    let expected = Pixmap::load_png("tests/images/gradients/sweep-gradient-full.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
+});

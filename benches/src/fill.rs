@@ -10,6 +10,15 @@ fn rect_tiny_skia(bencher: &mut Bencher) {
 
     let rect = Rect::from_xywh(50.7, 20.1, 812.4, 777.3).unwrap();
 
+    #[cfg(feature = "16bpc")]
+    if crate::is_16bpc() {
+        let mut pixmap = PixmapU16::new(1000, 1000).unwrap();
+        bencher.iter(|| {
+            pixmap.fill_rect(rect, &paint, Transform::identity(), None);
+        });
+        return;
+    }
+
     let mut pixmap = Pixmap::new(1000, 1000).unwrap();
 
     bencher.iter(|| {
@@ -78,6 +87,24 @@ fn rect_aa_tiny_skia(bencher: &mut Bencher) {
     paint.anti_alias = true;
 
     let rect = Rect::from_xywh(50.7, 20.1, 812.4, 777.3).unwrap();
+
+    #[cfg(feature = "16bpc")]
+    if crate::is_16bpc() {
+        let mut pixmap = PixmapU16::new(1000, 1000).unwrap();
+        bencher.iter(|| {
+            pixmap.fill_rect(rect, &paint, Transform::identity(), None);
+        });
+        return;
+    }
+
+    #[cfg(feature = "16bpc")]
+    if crate::is_16bpc() {
+        let mut pixmap = PixmapU16::new(1000, 1000).unwrap();
+        bencher.iter(|| {
+            pixmap.fill_rect(rect, &paint, Transform::identity(), None);
+        });
+        return;
+    }
 
     let mut pixmap = Pixmap::new(1000, 1000).unwrap();
 
@@ -150,10 +177,18 @@ fn rect_aa_ts_tiny_skia(bencher: &mut Bencher) {
 
     let rect = Rect::from_xywh(200.3, 100.4, 500.5, 300.2).unwrap();
 
+    #[cfg(feature = "16bpc")]
+    if crate::is_16bpc() {
+        let mut pixmap = PixmapU16::new(1000, 1000).unwrap();
+        bencher.iter(|| {
+            pixmap.fill_rect(rect, &paint, Transform::from_row(1.8, 0.3, -0.7, 0.8, 12.0, 15.3), None);
+        });
+        return;
+    }
+
     let mut pixmap = Pixmap::new(1000, 1000).unwrap();
 
     bencher.iter(|| {
-
         pixmap.fill_rect(rect, &paint, Transform::from_row(1.8, 0.3, -0.7, 0.8, 12.0, 15.3), None);
     });
 }
@@ -221,8 +256,18 @@ fn rect_aa_ts_cairo(bencher: &mut Bencher) {
 fn all_tiny_skia(bencher: &mut Bencher) {
     use tiny_skia::*;
 
-    let mut pixmap = Pixmap::new(1000, 1000).unwrap();
     let c = Color::from_rgba8(50, 100, 150, 200);
+
+    #[cfg(feature = "16bpc")]
+    if crate::is_16bpc() {
+        let mut pixmap = PixmapU16::new(1000, 1000).unwrap();
+        bencher.iter(|| {
+            pixmap.fill(c);
+        });
+        return;
+    }
+
+    let mut pixmap = Pixmap::new(1000, 1000).unwrap();
     bencher.iter(|| {
         pixmap.fill(c);
     });
@@ -285,6 +330,15 @@ fn path_aa_tiny_skia(bencher: &mut Bencher) {
     pb.cubic_to(230.0, 650.0, 350.0, 320.0, 500.0, 20.0);
     pb.close();
     let path = pb.finish().unwrap();
+
+    #[cfg(feature = "16bpc")]
+    if crate::is_16bpc() {
+        let mut pixmap = PixmapU16::new(1000, 1000).unwrap();
+        bencher.iter(|| {
+            pixmap.fill_path(&path, &paint, FillRule::EvenOdd, Transform::identity(), None);
+        });
+        return;
+    }
 
     let mut pixmap = Pixmap::new(1000, 1000).unwrap();
 
@@ -391,6 +445,15 @@ fn source_tiny_skia(bencher: &mut Bencher) {
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(100.0, 100.0, 900.0, 900.0).unwrap());
 
+    #[cfg(feature = "16bpc")]
+    if crate::is_16bpc() {
+        let mut pixmap = PixmapU16::new(1000, 1000).unwrap();
+        bencher.iter(|| {
+            pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+        });
+        return;
+    }
+
     let mut pixmap = Pixmap::new(1000, 1000).unwrap();
 
     bencher.iter(|| {
@@ -478,6 +541,15 @@ fn opaque_tiny_skia(bencher: &mut Bencher) {
     paint.anti_alias = false;
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(100.0, 100.0, 900.0, 900.0).unwrap());
+
+    #[cfg(feature = "16bpc")]
+    if crate::is_16bpc() {
+        let mut pixmap = PixmapU16::new(1000, 1000).unwrap();
+        bencher.iter(|| {
+            pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+        });
+        return;
+    }
 
     let mut pixmap = Pixmap::new(1000, 1000).unwrap();
 

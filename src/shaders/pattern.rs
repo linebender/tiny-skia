@@ -6,7 +6,12 @@
 
 use tiny_skia_path::NormalizedF32;
 
-use crate::{BlendMode, ColorSpace, PixmapRef, Shader, SpreadMode, Transform};
+#[cfg(feature = "16bpc")]
+use crate::PixmapU16Ref;
+use crate::{
+    BlendMode, ColorSpace, DynamicPixmapRef, Pixel, PixmapRef, PixmapRefGeneric, Shader,
+    SpreadMode, Transform,
+};
 
 use crate::pipeline;
 use crate::pipeline::RasterPipelineBuilder;
@@ -36,12 +41,10 @@ pub struct PixmapPaint {
     ///
     /// Default: 1.0
     pub opacity: f32,
-
     /// Pixmap blending mode.
     ///
     /// Default: SourceOver
     pub blend_mode: BlendMode,
-
     /// Specifies how much filtering to be done when transforming images.
     ///
     /// Default: Nearest
@@ -66,7 +69,7 @@ impl Default for PixmapPaint {
 /// mipmap generation, which adds too much complexity.
 #[derive(Clone, PartialEq, Debug)]
 pub struct Pattern<'a> {
-    pub(crate) pixmap: PixmapRef<'a>,
+    pub(crate) pixmap: DynamicPixmapRef<'a>,
     quality: FilterQuality,
     spread_mode: SpreadMode,
     pub(crate) opacity: NormalizedF32,
@@ -74,7 +77,7 @@ pub struct Pattern<'a> {
 }
 
 impl<'a> Pattern<'a> {
-    /// Creates a new pattern shader.
+    /// Creates a new pattern shader from an 8-bit pixmap.
     ///
     /// `opacity` will be clamped to the 0..=1 range.
     #[allow(clippy::new_ret_no_self)]
@@ -86,12 +89,51 @@ impl<'a> Pattern<'a> {
         transform: Transform,
     ) -> Shader<'a> {
         Shader::Pattern(Pattern {
-            pixmap,
+            pixmap: DynamicPixmapRef::U8(pixmap),
             spread_mode,
             quality,
             opacity: NormalizedF32::new_clamped(opacity),
             transform,
         })
+    }
+
+    /// Creates a new pattern shader from a 16-bit pixmap.
+    ///
+    /// `opacity` will be clamped to the 0..=1 range.
+    #[cfg(feature = "16bpc")]
+    pub fn new_u16(
+        pixmap: PixmapU16Ref<'a>,
+        spread_mode: SpreadMode,
+        quality: FilterQuality,
+        opacity: f32,
+        transform: Transform,
+    ) -> Shader<'a> {
+        Shader::Pattern(Pattern {
+            pixmap: DynamicPixmapRef::U16(pixmap),
+            spread_mode,
+            quality,
+            opacity: NormalizedF32::new_clamped(opacity),
+            transform,
+        })
+    }
+
+    /// Creates a new pattern shader from a generic pixmap reference.
+    pub fn from_pixmap<P: Pixel>(
+        pixmap: PixmapRefGeneric<'a, P>,
+        spread_mode: SpreadMode,
+        quality: FilterQuality,
+        opacity: f32,
+        transform: Transform,
+    ) -> Shader<'a> {
+        #[cfg(feature = "16bpc")]
+        if P::BYTES_PER_PIXEL == 8 {
+            let p16 =
+                PixmapU16Ref::from_bytes(pixmap.data(), pixmap.width(), pixmap.height()).unwrap();
+            return Self::new_u16(p16, spread_mode, quality, opacity, transform);
+        }
+
+        let p8 = PixmapRef::from_bytes(pixmap.data(), pixmap.width(), pixmap.height()).unwrap();
+        Self::new(p8, spread_mode, quality, opacity, transform)
     }
 
     pub(crate) fn push_stages(&self, cs: ColorSpace, p: &mut RasterPipelineBuilder) -> bool {

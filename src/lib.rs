@@ -58,10 +58,22 @@ mod painter; // Keep it under `pixmap` for a better order in the docs.
 
 pub use blend_mode::BlendMode;
 pub use color::{Color, ColorSpace, ColorU8, PremultipliedColor, PremultipliedColorU8};
+#[cfg(feature = "16bpc")]
+pub use color::{ColorU16, PremultipliedColorU16};
 pub use color::{ALPHA_OPAQUE, ALPHA_TRANSPARENT, ALPHA_U8_OPAQUE, ALPHA_U8_TRANSPARENT};
+#[cfg(feature = "16bpc")]
+pub use color::{ALPHA_U16_OPAQUE, ALPHA_U16_TRANSPARENT};
 pub use mask::{Mask, MaskType};
 pub use painter::{FillRule, Paint};
-pub use pixmap::{Pixmap, PixmapMut, PixmapRef, BYTES_PER_PIXEL};
+pub use pipeline::HighPixel;
+#[cfg(feature = "16bpc")]
+pub use pixmap::{
+    DynamicPixmap, DynamicPixmapMut, PixmapU16, PixmapU16Mut, PixmapU16Ref, SubPixmapU16Mut,
+};
+pub use pixmap::{
+    DynamicPixmapRef, Pixel, Pixmap, PixmapGeneric, PixmapMut, PixmapMutGeneric, PixmapRef,
+    PixmapRefGeneric, SubPixmapMut, SubPixmapMutGeneric, BYTES_PER_PIXEL,
+};
 pub use shaders::{FilterQuality, GradientStop, PixmapPaint, SpreadMode};
 pub use shaders::{LinearGradient, Pattern, RadialGradient, Shader, SweepGradient};
 

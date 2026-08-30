@@ -9,6 +9,27 @@ fn do_clip_tiny_skia(aa: bool, bencher: &mut Bencher) {
 
     let path = PathBuilder::from_rect(Rect::from_xywh(0.0, 0.0, 1000.0, 1000.0).unwrap());
 
+    #[cfg(feature = "16bpc")]
+    if crate::is_16bpc() {
+        let mut pixmap = PixmapU16::new(1000, 1000).unwrap();
+        bencher.iter(|| {
+            let clip_path = {
+                let mut pb = PathBuilder::new();
+                pb.push_rect(Rect::from_xywh(100.0, 100.0, 800.0, 800.0).unwrap());
+                pb.push_rect(Rect::from_xywh(300.0, 300.0, 400.0, 400.0).unwrap());
+                pb.finish().unwrap()
+            };
+
+            let clip_path = clip_path.transform(Transform::from_row(1.0, -0.5, 0.0, 1.0, 0.0, 300.0)).unwrap();
+
+            let mut mask = Mask::new(1000, 1000).unwrap();
+            mask.fill_path(&clip_path, FillRule::EvenOdd, aa, Transform::identity());
+
+            pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), Some(&mask));
+        });
+        return;
+    }
+
     let mut pixmap = Pixmap::new(1000, 1000).unwrap();
     bencher.iter(|| {
         let clip_path = {

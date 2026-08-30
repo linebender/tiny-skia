@@ -1,6 +1,6 @@
 use tiny_skia::*;
 
-fn crate_triangle() -> Pixmap {
+fn create_triangle<P: HighPixel>(_target: &PixmapGeneric<P>) -> PixmapGeneric<P> {
     let mut paint = Paint::default();
     paint.set_color_rgba8(50, 127, 150, 200);
     paint.anti_alias = true;
@@ -12,18 +12,17 @@ fn crate_triangle() -> Pixmap {
     pb.close();
     let path = pb.finish().unwrap();
 
-    let mut pixmap = Pixmap::new(20, 20).unwrap();
+    let mut pixmap = PixmapGeneric::new(20, 20).unwrap();
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
     pixmap
 }
 
-#[test]
-fn pad_nearest() {
-    let triangle = crate_triangle();
+test_raster!(pad_nearest, 200, 200, "tests/images/pattern/pad-nearest.png", |pixmap| {
+    let triangle = create_triangle(&pixmap);
 
     let mut paint = Paint::default();
     paint.anti_alias = false;
-    paint.shader = Pattern::new(
+    paint.shader = Pattern::from_pixmap(
         triangle.as_ref(),
         SpreadMode::Pad,
         FilterQuality::Nearest,
@@ -32,21 +31,15 @@ fn pad_nearest() {
     );
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
-
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/pattern/pad-nearest.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn repeat_nearest() {
-    let triangle = crate_triangle();
+test_raster!(repeat_nearest, 200, 200, "tests/images/pattern/repeat-nearest.png", |pixmap| {
+    let triangle = create_triangle(&pixmap);
 
     let mut paint = Paint::default();
     paint.anti_alias = false;
-    paint.shader = Pattern::new(
+    paint.shader = Pattern::from_pixmap(
         triangle.as_ref(),
         SpreadMode::Repeat,
         FilterQuality::Nearest,
@@ -55,21 +48,15 @@ fn repeat_nearest() {
     );
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
-
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/pattern/repeat-nearest.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn reflect_nearest() {
-    let triangle = crate_triangle();
+test_raster!(reflect_nearest, 200, 200, "tests/images/pattern/reflect-nearest.png", |pixmap| {
+    let triangle = create_triangle(&pixmap);
 
     let mut paint = Paint::default();
     paint.anti_alias = false;
-    paint.shader = Pattern::new(
+    paint.shader = Pattern::from_pixmap(
         triangle.as_ref(),
         SpreadMode::Reflect,
         FilterQuality::Nearest,
@@ -78,95 +65,66 @@ fn reflect_nearest() {
     );
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
-
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/pattern/reflect-nearest.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-// We have to test tile mode for bilinear/bicubic separately,
-// because they're using a different algorithm from nearest.
-#[test]
-fn pad_bicubic() {
-    let triangle = crate_triangle();
+test_raster!(pad_bicubic, 200, 200, "tests/images/pattern/pad-bicubic.png", |pixmap| {
+    let triangle = create_triangle(&pixmap);
 
     let mut paint = Paint::default();
     paint.anti_alias = false;
-    paint.shader = Pattern::new(
+    paint.shader = Pattern::from_pixmap(
         triangle.as_ref(),
         SpreadMode::Pad,
         FilterQuality::Bicubic,
         1.0,
-        // Transform must be set, otherwise we will fallback to Nearest.
         Transform::from_row(1.1, 0.3, 0.0, 1.4, 0.0, 0.0),
     );
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
-
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/pattern/pad-bicubic.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn repeat_bicubic() {
-    let triangle = crate_triangle();
+test_raster!(repeat_bicubic, 200, 200, "tests/images/pattern/repeat-bicubic.png", |pixmap| {
+    let triangle = create_triangle(&pixmap);
 
     let mut paint = Paint::default();
     paint.anti_alias = false;
-    paint.shader = Pattern::new(
+    paint.shader = Pattern::from_pixmap(
         triangle.as_ref(),
         SpreadMode::Repeat,
         FilterQuality::Bicubic,
         1.0,
-        // Transform must be set, otherwise we will fallback to Nearest.
         Transform::from_row(1.1, 0.3, 0.0, 1.4, 0.0, 0.0),
     );
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
-
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/pattern/repeat-bicubic.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn reflect_bicubic() {
-    let triangle = crate_triangle();
+test_raster!(reflect_bicubic, 200, 200, "tests/images/pattern/reflect-bicubic.png", |pixmap| {
+    let triangle = create_triangle(&pixmap);
 
     let mut paint = Paint::default();
     paint.anti_alias = false;
-    paint.shader = Pattern::new(
+    paint.shader = Pattern::from_pixmap(
         triangle.as_ref(),
         SpreadMode::Reflect,
         FilterQuality::Bicubic,
         1.0,
-        // Transform must be set, otherwise we will fallback to Nearest.
         Transform::from_row(1.1, 0.3, 0.0, 1.4, 0.0, 0.0),
     );
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
-
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/pattern/reflect-bicubic.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn filter_nearest_no_ts() {
-    let triangle = crate_triangle();
+test_raster!(filter_nearest_no_ts, 200, 200, "tests/images/pattern/filter-nearest-no-ts.png", |pixmap| {
+    let triangle = create_triangle(&pixmap);
 
     let mut paint = Paint::default();
     paint.anti_alias = false;
-    paint.shader = Pattern::new(
+    paint.shader = Pattern::from_pixmap(
         triangle.as_ref(),
         SpreadMode::Repeat,
         FilterQuality::Nearest,
@@ -175,21 +133,15 @@ fn filter_nearest_no_ts() {
     );
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
-
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/pattern/filter-nearest-no-ts.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn filter_nearest() {
-    let triangle = crate_triangle();
+test_raster!(filter_nearest, 200, 200, "tests/images/pattern/filter-nearest.png", |pixmap| {
+    let triangle = create_triangle(&pixmap);
 
     let mut paint = Paint::default();
     paint.anti_alias = false;
-    paint.shader = Pattern::new(
+    paint.shader = Pattern::from_pixmap(
         triangle.as_ref(),
         SpreadMode::Repeat,
         FilterQuality::Nearest,
@@ -198,21 +150,15 @@ fn filter_nearest() {
     );
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
-
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/pattern/filter-nearest.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn filter_bilinear() {
-    let triangle = crate_triangle();
+test_raster!(filter_bilinear, 200, 200, "tests/images/pattern/filter-bilinear.png", |pixmap| {
+    let triangle = create_triangle(&pixmap);
 
     let mut paint = Paint::default();
     paint.anti_alias = false;
-    paint.shader = Pattern::new(
+    paint.shader = Pattern::from_pixmap(
         triangle.as_ref(),
         SpreadMode::Repeat,
         FilterQuality::Bilinear,
@@ -221,21 +167,15 @@ fn filter_bilinear() {
     );
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
-
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/pattern/filter-bilinear.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn filter_bicubic() {
-    let triangle = crate_triangle();
+test_raster!(filter_bicubic, 200, 200, "tests/images/pattern/filter-bicubic.png", |pixmap| {
+    let triangle = create_triangle(&pixmap);
 
     let mut paint = Paint::default();
     paint.anti_alias = false;
-    paint.shader = Pattern::new(
+    paint.shader = Pattern::from_pixmap(
         triangle.as_ref(),
         SpreadMode::Repeat,
         FilterQuality::Bicubic,
@@ -244,10 +184,5 @@ fn filter_bicubic() {
     );
 
     let path = PathBuilder::from_rect(Rect::from_ltrb(10.0, 10.0, 190.0, 190.0).unwrap());
-
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
     pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
-
-    let expected = Pixmap::load_png("tests/images/pattern/filter-bicubic.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
+});

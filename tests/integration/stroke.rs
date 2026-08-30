@@ -1,7 +1,6 @@
 use tiny_skia::*;
 
-#[test]
-fn round_caps_and_large_scale() {
+test_raster!(round_caps_and_large_scale, 200, 200, "tests/images/stroke/round-caps-and-large-scale.png", |pixmap| {
     let mut paint = Paint::default();
     paint.set_color_rgba8(50, 127, 150, 200);
     paint.anti_alias = true;
@@ -19,15 +18,10 @@ fn round_caps_and_large_scale() {
 
     let transform = Transform::from_scale(16.0, 16.0);
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
     pixmap.stroke_path(&path, &paint, &stroke, transform, None);
+});
 
-    let expected = Pixmap::load_png("tests/images/stroke/round-caps-and-large-scale.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn circle() {
+test_raster!(circle, 200, 200, "tests/images/stroke/circle.png", |pixmap| {
     let mut paint = Paint::default();
     paint.set_color_rgba8(50, 127, 150, 200);
     paint.anti_alias = true;
@@ -36,15 +30,10 @@ fn circle() {
     let mut stroke = Stroke::default();
     stroke.width = 2.0;
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
     pixmap.stroke_path(&path, &paint, &stroke, Transform::default(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/stroke/circle.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn zero_len_subpath_butt_cap() {
+test_raster!(zero_len_subpath_butt_cap, 100, 100, "tests/images/stroke/zero-len-subpath-butt-cap.png", |pixmap| {
     let mut paint = Paint::default();
     paint.set_color_rgba8(50, 127, 150, 200);
     paint.anti_alias = true;
@@ -58,15 +47,10 @@ fn zero_len_subpath_butt_cap() {
     stroke.width = 20.0;
     stroke.line_cap = LineCap::Butt;
 
-    let mut pixmap = Pixmap::new(100, 100).unwrap();
     pixmap.stroke_path(&path, &paint, &stroke, Transform::default(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/stroke/zero-len-subpath-butt-cap.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn zero_len_subpath_round_cap() {
+test_raster!(zero_len_subpath_round_cap, 100, 100, "tests/images/stroke/zero-len-subpath-round-cap.png", |pixmap| {
     let mut paint = Paint::default();
     paint.set_color_rgba8(50, 127, 150, 200);
     paint.anti_alias = true;
@@ -80,15 +64,10 @@ fn zero_len_subpath_round_cap() {
     stroke.width = 20.0;
     stroke.line_cap = LineCap::Round;
 
-    let mut pixmap = Pixmap::new(100, 100).unwrap();
     pixmap.stroke_path(&path, &paint, &stroke, Transform::default(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/stroke/zero-len-subpath-round-cap.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn zero_len_subpath_square_cap() {
+test_raster!(zero_len_subpath_square_cap, 100, 100, "tests/images/stroke/zero-len-subpath-square-cap.png", |pixmap| {
     let mut paint = Paint::default();
     paint.set_color_rgba8(50, 127, 150, 200);
     paint.anti_alias = true;
@@ -102,15 +81,10 @@ fn zero_len_subpath_square_cap() {
     stroke.width = 20.0;
     stroke.line_cap = LineCap::Square;
 
-    let mut pixmap = Pixmap::new(100, 100).unwrap();
     pixmap.stroke_path(&path, &paint, &stroke, Transform::default(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/stroke/zero-len-subpath-square-cap.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn round_cap_join() {
+test_raster!(round_cap_join, 200, 200, "tests/images/stroke/round-cap-join.png", |pixmap| {
     let mut paint = Paint::default();
     paint.set_color_rgba8(50, 127, 150, 200);
     paint.anti_alias = true;
@@ -126,9 +100,5 @@ fn round_cap_join() {
     stroke.line_cap = LineCap::Round;
     stroke.line_join = LineJoin::Round;
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
     pixmap.stroke_path(&path, &paint, &stroke, Transform::default(), None);
-
-    let expected = Pixmap::load_png("tests/images/stroke/round-cap-join.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
+});

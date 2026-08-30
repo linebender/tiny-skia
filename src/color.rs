@@ -19,6 +19,18 @@ pub const ALPHA_U8_TRANSPARENT: AlphaU8 = 0x00;
 /// Represents fully opaque AlphaU8 value.
 pub const ALPHA_U8_OPAQUE: AlphaU8 = 0xFF;
 
+/// 16-bit type for an alpha value. 65535 is 100% opaque, zero is 100% transparent.
+#[cfg(feature = "16bpc")]
+pub type AlphaU16 = u16;
+
+/// Represents fully transparent AlphaU16 value.
+#[cfg(feature = "16bpc")]
+pub const ALPHA_U16_TRANSPARENT: AlphaU16 = 0x0000;
+
+/// Represents fully opaque AlphaU16 value.
+#[cfg(feature = "16bpc")]
+pub const ALPHA_U16_OPAQUE: AlphaU16 = 0xFFFF;
+
 /// Represents fully transparent Alpha value.
 pub const ALPHA_TRANSPARENT: NormalizedF32 = NormalizedF32::ZERO;
 
@@ -29,7 +41,7 @@ pub const ALPHA_OPAQUE: NormalizedF32 = NormalizedF32::ONE;
 ///
 /// Byteorder: RGBA (relevant for bytemuck casts)
 #[repr(transparent)]
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct ColorU8([u8; 4]);
 
 impl ColorU8 {
@@ -79,6 +91,12 @@ impl ColorU8 {
             PremultipliedColorU8::from_rgba_unchecked(self.red(), self.green(), self.blue(), a)
         }
     }
+
+    /// Converts into a 16bpc `ColorU16` via bit replication `(c << 8) | c`.
+    #[cfg(feature = "16bpc")]
+    pub fn to_color_u16(self) -> ColorU16 {
+        ColorU16::from_color_u8(self)
+    }
 }
 
 impl core::fmt::Debug for ColorU8 {
@@ -92,16 +110,104 @@ impl core::fmt::Debug for ColorU8 {
     }
 }
 
+/// A 64-bit RGBA color value with 16 bits per channel (unmultiplied).
+#[cfg(feature = "16bpc")]
+#[repr(transparent)]
+#[derive(Copy, Clone, PartialEq, Eq, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct ColorU16([u16; 4]);
+
+#[cfg(feature = "16bpc")]
+impl ColorU16 {
+    /// Creates a new color.
+    pub const fn from_rgba(r: u16, g: u16, b: u16, a: u16) -> Self {
+        ColorU16([r, g, b, a])
+    }
+
+    /// Returns color's red component.
+    pub const fn red(self) -> u16 {
+        self.0[0]
+    }
+
+    /// Returns color's green component.
+    pub const fn green(self) -> u16 {
+        self.0[1]
+    }
+
+    /// Returns color's blue component.
+    pub const fn blue(self) -> u16 {
+        self.0[2]
+    }
+
+    /// Returns color's alpha component.
+    pub const fn alpha(self) -> u16 {
+        self.0[3]
+    }
+
+    /// Check that color is opaque.
+    ///
+    /// Alpha == 65535
+    pub fn is_opaque(&self) -> bool {
+        self.alpha() == ALPHA_U16_OPAQUE
+    }
+
+    /// Converts from 8-bit ColorU8 via bit replication `(c << 8) | c`.
+    pub fn from_color_u8(c: ColorU8) -> Self {
+        #[inline(always)]
+        fn up(v: u8) -> u16 {
+            let v = v as u16;
+            (v << 8) | v
+        }
+        ColorU16([up(c.red()), up(c.green()), up(c.blue()), up(c.alpha())])
+    }
+
+    /// Converts to 8-bit ColorU8 via `(c + 128) >> 8`.
+    pub fn to_color_u8(self) -> ColorU8 {
+        #[inline(always)]
+        fn down(v: u16) -> u8 {
+            ((v as u32 + 128) >> 8).min(255) as u8
+        }
+        ColorU8::from_rgba(
+            down(self.red()),
+            down(self.green()),
+            down(self.blue()),
+            down(self.alpha()),
+        )
+    }
+
+    /// Converts into a premultiplied color.
+    pub fn premultiply(&self) -> PremultipliedColorU16 {
+        let a = self.alpha();
+        if a != ALPHA_U16_OPAQUE {
+            PremultipliedColorU16::from_rgba_unchecked(
+                premultiply_u16(self.red(), a),
+                premultiply_u16(self.green(), a),
+                premultiply_u16(self.blue(), a),
+                a,
+            )
+        } else {
+            PremultipliedColorU16::from_rgba_unchecked(self.red(), self.green(), self.blue(), a)
+        }
+    }
+}
+
+#[cfg(feature = "16bpc")]
+impl core::fmt::Debug for ColorU16 {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("ColorU16")
+            .field("r", &self.red())
+            .field("g", &self.green())
+            .field("b", &self.blue())
+            .field("a", &self.alpha())
+            .finish()
+    }
+}
+
 /// A 32-bit premultiplied RGBA color value.
 ///
 /// Byteorder: RGBA (relevant for bytemuck casts)
 #[repr(transparent)]
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct PremultipliedColorU8([u8; 4]);
-
-// Perfectly safe, since [u8; 4] is already Pod.
-unsafe impl bytemuck::Zeroable for PremultipliedColorU8 {}
-unsafe impl bytemuck::Pod for PremultipliedColorU8 {}
 
 impl PremultipliedColorU8 {
     /// A transparent color.
@@ -119,7 +225,7 @@ impl PremultipliedColorU8 {
     }
 
     /// Creates a new color.
-    pub(crate) const fn from_rgba_unchecked(r: u8, g: u8, b: u8, a: u8) -> Self {
+    pub const fn from_rgba_unchecked(r: u8, g: u8, b: u8, a: u8) -> Self {
         PremultipliedColorU8([r, g, b, a])
     }
 
@@ -156,6 +262,12 @@ impl PremultipliedColorU8 {
         self.alpha() == ALPHA_U8_OPAQUE
     }
 
+    /// Converts into a 16bpc `PremultipliedColorU16` via bit replication `(c << 8) | c`.
+    #[cfg(feature = "16bpc")]
+    pub fn to_color_u16(self) -> PremultipliedColorU16 {
+        PremultipliedColorU16::from_color_u8(self)
+    }
+
     /// Returns a demultiplied color.
     pub fn demultiply(&self) -> ColorU8 {
         let alpha = self.alpha();
@@ -176,6 +288,121 @@ impl PremultipliedColorU8 {
 impl core::fmt::Debug for PremultipliedColorU8 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("PremultipliedColorU8")
+            .field("r", &self.red())
+            .field("g", &self.green())
+            .field("b", &self.blue())
+            .field("a", &self.alpha())
+            .finish()
+    }
+}
+
+/// A 64-bit premultiplied RGBA color value with 16 bits per channel.
+#[cfg(feature = "16bpc")]
+#[repr(transparent)]
+#[derive(Copy, Clone, PartialEq, Eq, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct PremultipliedColorU16([u16; 4]);
+
+#[cfg(feature = "16bpc")]
+impl PremultipliedColorU16 {
+    /// A transparent color.
+    pub const TRANSPARENT: Self = PremultipliedColorU16::from_rgba_unchecked(0, 0, 0, 0);
+
+    /// Creates a new premultiplied color.
+    ///
+    /// RGB components must be <= alpha.
+    pub fn from_rgba(r: u16, g: u16, b: u16, a: u16) -> Option<Self> {
+        if r <= a && g <= a && b <= a {
+            Some(PremultipliedColorU16([r, g, b, a]))
+        } else {
+            None
+        }
+    }
+
+    /// Creates a new color.
+    pub const fn from_rgba_unchecked(r: u16, g: u16, b: u16, a: u16) -> Self {
+        PremultipliedColorU16([r, g, b, a])
+    }
+
+    /// Returns color's red component.
+    ///
+    /// The value is <= alpha.
+    pub const fn red(self) -> u16 {
+        self.0[0]
+    }
+
+    /// Returns color's green component.
+    ///
+    /// The value is <= alpha.
+    pub const fn green(self) -> u16 {
+        self.0[1]
+    }
+
+    /// Returns color's blue component.
+    ///
+    /// The value is <= alpha.
+    pub const fn blue(self) -> u16 {
+        self.0[2]
+    }
+
+    /// Returns color's alpha component.
+    pub const fn alpha(self) -> u16 {
+        self.0[3]
+    }
+
+    /// Check that color is opaque.
+    ///
+    /// Alpha == 65535
+    pub fn is_opaque(&self) -> bool {
+        self.alpha() == ALPHA_U16_OPAQUE
+    }
+
+    /// Converts from 8-bit PremultipliedColorU8 via bit replication `(c << 8) | c`.
+    pub fn from_color_u8(c: PremultipliedColorU8) -> Self {
+        #[inline(always)]
+        fn up(v: u8) -> u16 {
+            let v = v as u16;
+            (v << 8) | v
+        }
+        PremultipliedColorU16([up(c.red()), up(c.green()), up(c.blue()), up(c.alpha())])
+    }
+
+    /// Converts to 8-bit PremultipliedColorU8 via `(c + 128) >> 8`.
+    pub fn to_color_u8(self) -> PremultipliedColorU8 {
+        #[inline(always)]
+        fn down(v: u16) -> u8 {
+            ((v as u32 + 128) >> 8).min(255) as u8
+        }
+        PremultipliedColorU8::from_rgba_unchecked(
+            down(self.red()),
+            down(self.green()),
+            down(self.blue()),
+            down(self.alpha()),
+        )
+    }
+
+    /// Returns a demultiplied color.
+    pub fn demultiply(&self) -> ColorU16 {
+        let alpha = self.alpha();
+        if alpha == ALPHA_U16_OPAQUE {
+            ColorU16(self.0)
+        } else if alpha == 0 {
+            ColorU16([0, 0, 0, 0])
+        } else {
+            let a = alpha as f64 / 65535.0;
+            ColorU16::from_rgba(
+                ((self.red() as f64 / a + 0.5) as u64).min(65535) as u16,
+                ((self.green() as f64 / a + 0.5) as u64).min(65535) as u16,
+                ((self.blue() as f64 / a + 0.5) as u64).min(65535) as u16,
+                alpha,
+            )
+        }
+    }
+}
+
+#[cfg(feature = "16bpc")]
+impl core::fmt::Debug for PremultipliedColorU16 {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("PremultipliedColorU16")
             .field("r", &self.red())
             .field("g", &self.green())
             .field("b", &self.blue())
@@ -353,10 +580,30 @@ impl Color {
         }
     }
 
+    /// Creates a new color from 4 16-bit components.
+    ///
+    /// u16 will be divided by 65535 to get the float component.
+    #[cfg(feature = "16bpc")]
+    pub fn from_rgba16(r: u16, g: u16, b: u16, a: u16) -> Self {
+        Color {
+            r: NormalizedF32::new_clamped(r as f32 * (1.0 / 65535.0)),
+            g: NormalizedF32::new_clamped(g as f32 * (1.0 / 65535.0)),
+            b: NormalizedF32::new_clamped(b as f32 * (1.0 / 65535.0)),
+            a: NormalizedF32::new_clamped(a as f32 * (1.0 / 65535.0)),
+        }
+    }
+
     /// Converts into `ColorU8`.
     pub fn to_color_u8(&self) -> ColorU8 {
         let c = color_f32_to_u8(self.r, self.g, self.b, self.a);
         ColorU8::from_rgba(c[0], c[1], c[2], c[3])
+    }
+
+    /// Converts into `ColorU16`.
+    #[cfg(feature = "16bpc")]
+    pub fn to_color_u16(&self) -> ColorU16 {
+        let c = color_f32_to_u16(self.r, self.g, self.b, self.a);
+        ColorU16::from_rgba(c[0], c[1], c[2], c[3])
     }
 }
 
@@ -375,6 +622,19 @@ pub struct PremultipliedColor {
 }
 
 impl PremultipliedColor {
+    /// Creates a premultiplied color from components.
+    pub fn from_rgba(r: f32, g: f32, b: f32, a: f32) -> Option<Self> {
+        let r = NormalizedF32::new(r)?;
+        let g = NormalizedF32::new(g)?;
+        let b = NormalizedF32::new(b)?;
+        let a = NormalizedF32::new(a)?;
+        if r.get() <= a.get() && g.get() <= a.get() && b.get() <= a.get() {
+            Some(PremultipliedColor { r, g, b, a })
+        } else {
+            None
+        }
+    }
+
     /// Returns color's red component.
     ///
     /// - The value is guarantee to be in a 0..=1 range.
@@ -426,12 +686,25 @@ impl PremultipliedColor {
         let c = color_f32_to_u8(self.r, self.g, self.b, self.a);
         PremultipliedColorU8::from_rgba_unchecked(c[0], c[1], c[2], c[3])
     }
+
+    /// Converts into `PremultipliedColorU16`.
+    #[cfg(feature = "16bpc")]
+    pub fn to_color_u16(&self) -> PremultipliedColorU16 {
+        let c = color_f32_to_u16(self.r, self.g, self.b, self.a);
+        PremultipliedColorU16::from_rgba_unchecked(c[0], c[1], c[2], c[3])
+    }
 }
 
 /// Return a*b/255, rounding any fractional bits.
 pub fn premultiply_u8(c: u8, a: u8) -> u8 {
     let prod = u32::from(c) * u32::from(a) + 128;
     ((prod + (prod >> 8)) >> 8) as u8
+}
+
+/// Return a*b/65535, rounding any fractional bits.
+#[cfg(feature = "16bpc")]
+pub fn premultiply_u16(c: u16, a: u16) -> u16 {
+    crate::math::mul_div65535_round(c as u32, a as u32) as u16
 }
 
 fn color_f32_to_u8(
@@ -445,6 +718,21 @@ fn color_f32_to_u8(
         (g.get() * 255.0 + 0.5) as u8,
         (b.get() * 255.0 + 0.5) as u8,
         (a.get() * 255.0 + 0.5) as u8,
+    ]
+}
+
+#[cfg(feature = "16bpc")]
+fn color_f32_to_u16(
+    r: NormalizedF32,
+    g: NormalizedF32,
+    b: NormalizedF32,
+    a: NormalizedF32,
+) -> [u16; 4] {
+    [
+        (r.get() * 65535.0 + 0.5) as u16,
+        (g.get() * 65535.0 + 0.5) as u16,
+        (b.get() * 65535.0 + 0.5) as u16,
+        (a.get() * 65535.0 + 0.5) as u16,
     ]
 }
 
@@ -597,5 +885,42 @@ mod tests {
         ];
         let bytes: &[u8] = bytemuck::cast_slice(slice);
         assert_eq!(bytes, &[0, 1, 2, 3, 10, 11, 12, 13]);
+    }
+
+    #[test]
+    #[cfg(feature = "16bpc")]
+    fn premultiply_u16_test() {
+        let c = ColorU16::from_rgba(1000, 2000, 3000, 4000).premultiply();
+        // 1000 * 4000 / 65535 = 61.036 -> 61
+        // 2000 * 4000 / 65535 = 122.07 -> 122
+        // 3000 * 4000 / 65535 = 183.109 -> 183
+        assert_eq!(
+            c,
+            PremultipliedColorU16::from_rgba_unchecked(61, 122, 183, 4000)
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "16bpc")]
+    fn bytemuck_casts_rgba16() {
+        let slice = &[
+            PremultipliedColorU16::from_rgba_unchecked(1, 2, 3, 4),
+            PremultipliedColorU16::from_rgba_unchecked(100, 200, 300, 400),
+        ];
+        let bytes: &[u8] = bytemuck::cast_slice(slice);
+        let back: &[PremultipliedColorU16] = bytemuck::cast_slice(bytes);
+        assert_eq!(slice, back);
+    }
+
+    #[test]
+    #[cfg(feature = "16bpc")]
+    fn bit_exact_mul_div65535_exhaustive_edge_cases() {
+        use crate::math::mul_div65535_round;
+        assert_eq!(mul_div65535_round(0, 0), 0);
+        assert_eq!(mul_div65535_round(65535, 65535), 65535);
+        assert_eq!(mul_div65535_round(0, 65535), 0);
+        assert_eq!(mul_div65535_round(65535, 0), 0);
+        assert_eq!(mul_div65535_round(32767, 65535), 32767);
+        assert_eq!(mul_div65535_round(32768, 65535), 32768);
     }
 }

@@ -220,6 +220,15 @@ fn draw_tiny_skia(aa: bool, bencher: &mut Bencher) {
     let mut stroke = Stroke::default();
     stroke.width = 0.5;
 
+    #[cfg(feature = "16bpc")]
+    if crate::is_16bpc() {
+        let mut pixmap = PixmapU16::new(1000, 1000).unwrap();
+        bencher.iter(|| {
+            pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+        });
+        return;
+    }
+
     let mut pixmap = Pixmap::new(1000, 1000).unwrap();
 
     bencher.iter(|| {

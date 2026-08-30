@@ -218,6 +218,15 @@ fn tiny_skia(bencher: &mut Bencher) {
     }
     let path = pb.finish().unwrap();
 
+    #[cfg(feature = "16bpc")]
+    if crate::is_16bpc() {
+        let mut pixmap = PixmapU16::new(1000, 1000).unwrap();
+        bencher.iter(|| {
+            pixmap.stroke_path(&path, &paint, &Stroke::default(), Transform::identity(), None);
+        });
+        return;
+    }
+
     let mut pixmap = Pixmap::new(1000, 1000).unwrap();
     bencher.iter(|| {
         pixmap.stroke_path(&path, &paint, &Stroke::default(), Transform::identity(), None);

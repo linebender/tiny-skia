@@ -16,7 +16,7 @@ members = ["path"]
 
 [dependencies]
 arrayvec = { version = "0.7", default-features = false }
-bytemuck = { version = "1.24", features = ["aarch64_simd"] }
+bytemuck = { version = "1.24", features = ["aarch64_simd", "derive"] }
 cfg-if = "1"
 log = "0.4"
 png = { version = "0.18", optional = true }
@@ -37,3 +37,6 @@ simd = []
 
 # Allows loading and saving `Pixmap` as PNG.
 png-format = ["std", "dep:png"]
+
+# Enables 16-bit per channel (RGBA64 / 64bpp) color pipeline support.
+16bpc = []

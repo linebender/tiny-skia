@@ -1,7 +1,6 @@
 use tiny_skia::*;
 
-#[test]
-fn line() {
+test_raster!(line, 100, 100, "tests/images/dash/line.png", |pixmap| {
     let mut pb = PathBuilder::new();
     pb.move_to(10.0, 20.0);
     pb.line_to(90.0, 80.0);
@@ -15,15 +14,10 @@ fn line() {
     stroke.dash = StrokeDash::new(vec![5.0, 10.0], 0.0);
     stroke.width = 2.0;
 
-    let mut pixmap = Pixmap::new(100, 100).unwrap();
     pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/dash/line.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn quad() {
+test_raster!(quad, 100, 100, "tests/images/dash/quad.png", |pixmap| {
     let mut pb = PathBuilder::new();
     pb.move_to(10.0, 20.0);
     pb.quad_to(35.0, 75.0, 90.0, 80.0);
@@ -37,15 +31,10 @@ fn quad() {
     stroke.dash = StrokeDash::new(vec![5.0, 10.0], 0.0);
     stroke.width = 2.0;
 
-    let mut pixmap = Pixmap::new(100, 100).unwrap();
     pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/dash/quad.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn cubic() {
+test_raster!(cubic, 100, 100, "tests/images/dash/cubic.png", |pixmap| {
     let mut pb = PathBuilder::new();
     pb.move_to(10.0, 20.0);
     pb.cubic_to(95.0, 35.0, 0.0, 75.0, 75.0, 90.0);
@@ -59,15 +48,10 @@ fn cubic() {
     stroke.dash = StrokeDash::new(vec![5.0, 10.0], 0.0);
     stroke.width = 2.0;
 
-    let mut pixmap = Pixmap::new(100, 100).unwrap();
     pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/dash/cubic.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn hairline() {
+test_raster!(hairline, 100, 100, "tests/images/dash/hairline.png", |pixmap| {
     let mut pb = PathBuilder::new();
     pb.move_to(10.0, 20.0);
     pb.cubic_to(95.0, 35.0, 0.0, 75.0, 75.0, 90.0);
@@ -81,15 +65,10 @@ fn hairline() {
     stroke.dash = StrokeDash::new(vec![5.0, 10.0], 0.0);
     stroke.width = 0.5;
 
-    let mut pixmap = Pixmap::new(100, 100).unwrap();
     pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/dash/hairline.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn complex() {
+test_raster!(complex, 200, 200, "tests/images/dash/complex.png", |pixmap| {
     let mut pb = PathBuilder::new();
     pb.move_to(28.7, 23.9);
     pb.line_to(177.4, 35.2);
@@ -109,15 +88,10 @@ fn complex() {
     stroke.dash = StrokeDash::new(vec![10.0, 5.0], 2.0);
     stroke.width = 2.0;
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
     pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/dash/complex.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn multi_subpaths() {
+test_raster!(multi_subpaths, 200, 200, "tests/images/dash/multi_subpaths.png", |pixmap| {
     let mut pb = PathBuilder::new();
     pb.move_to(49.0, 76.0);
     pb.cubic_to(22.0, 150.0, 11.0, 213.0, 186.0, 151.0);
@@ -138,15 +112,10 @@ fn multi_subpaths() {
     stroke.dash = StrokeDash::new(vec![10.0, 5.0], 2.0);
     stroke.width = 2.0;
 
-    let mut pixmap = Pixmap::new(200, 200).unwrap();
     pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+});
 
-    let expected = Pixmap::load_png("tests/images/dash/multi_subpaths.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
-
-#[test]
-fn closed() {
+test_raster!(closed, 100, 100, "tests/images/dash/closed.png", |pixmap| {
     let mut pb = PathBuilder::new();
     pb.move_to(22.0, 22.0);
     pb.cubic_to(63.0, 16.0, 82.0, 24.0, 84.0, 46.0);
@@ -162,9 +131,5 @@ fn closed() {
     stroke.dash = StrokeDash::new(vec![10.0, 5.0], 2.0);
     stroke.width = 2.0;
 
-    let mut pixmap = Pixmap::new(100, 100).unwrap();
     pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
-
-    let expected = Pixmap::load_png("tests/images/dash/closed.png").unwrap();
-    assert_eq!(pixmap, expected);
-}
+});
