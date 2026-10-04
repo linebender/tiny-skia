@@ -353,15 +353,11 @@ impl f32x4 {
     pub fn recip_fast(self) -> Self {
         cfg_if::cfg_if! {
             if #[cfg(all(feature = "simd", target_feature = "sse2"))] {
-                Self(unsafe { _mm_rcp_ps(self.0) })
+                Self(unsafe { _mm_div_ps(_mm_set1_ps(1.0), self.0) })
             } else if #[cfg(all(feature = "simd", target_feature = "simd128"))] {
                 Self(f32x4_div(f32x4_splat(1.0), self.0))
             } else if #[cfg(all(feature = "simd", target_arch = "aarch64", target_feature = "neon"))] {
-                unsafe {
-                    let a = vrecpeq_f32(self.0);
-                    let a = vmulq_f32(vrecpsq_f32(self.0, a), a);
-                    Self(a)
-                }
+                Self(unsafe { vdivq_f32(vdupq_n_f32(1.0), self.0) })
             } else {
                 Self::from([
                     1.0 / self.0[0],
@@ -376,15 +372,11 @@ impl f32x4 {
     pub fn recip_sqrt(self) -> Self {
         cfg_if::cfg_if! {
             if #[cfg(all(feature = "simd", target_feature = "sse2"))] {
-                Self(unsafe { _mm_rsqrt_ps(self.0) })
+                Self(unsafe { _mm_div_ps(_mm_set1_ps(1.0), _mm_sqrt_ps(self.0)) })
             } else if #[cfg(all(feature = "simd", target_feature = "simd128"))] {
                 Self(f32x4_div(f32x4_splat(1.0), f32x4_sqrt(self.0)))
             } else if #[cfg(all(feature = "simd", target_arch = "aarch64", target_feature = "neon"))] {
-                unsafe {
-                    let a = vrsqrteq_f32(self.0);
-                    let a = vmulq_f32(vrsqrtsq_f32(self.0, vmulq_f32(a, a)), a);
-                    Self(a)
-                }
+                Self(unsafe { vdivq_f32(vdupq_n_f32(1.0), vsqrtq_f32(self.0)) })
             } else {
                 Self::from([
                     1.0 / self.0[0].sqrt(),

@@ -221,7 +221,7 @@ impl f32x8 {
     pub fn recip_fast(self) -> Self {
         cfg_if::cfg_if! {
             if #[cfg(all(feature = "simd", target_feature = "avx"))] {
-                Self(unsafe { _mm256_rcp_ps(self.0) })
+                Self(unsafe { _mm256_div_ps(_mm256_set1_ps(1.0), self.0) })
             } else {
                 Self(self.0.recip_fast(), self.1.recip_fast())
             }
@@ -231,7 +231,7 @@ impl f32x8 {
     pub fn recip_sqrt(self) -> Self {
         cfg_if::cfg_if! {
             if #[cfg(all(feature = "simd", target_feature = "avx"))] {
-                Self(unsafe { _mm256_rsqrt_ps(self.0) })
+                Self(unsafe { _mm256_div_ps(_mm256_set1_ps(1.0), _mm256_sqrt_ps(self.0)) })
             } else {
                 Self(self.0.recip_sqrt(), self.1.recip_sqrt())
             }
