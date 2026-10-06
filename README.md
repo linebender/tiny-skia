@@ -91,7 +91,7 @@ And more importantly, we do not plan to support many feature at all.
 - GPU rendering.
 - Text rendering (maybe someday).
 - PDF generation.
-- Non-RGBA8888 images.
+- Non-RGBA images.
 - Non-PNG image formats.
 - Advanced Bézier path operations.
 - Conic path segments.

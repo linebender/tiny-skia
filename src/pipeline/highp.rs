@@ -18,7 +18,7 @@ and we're using a manual implementation.
 use crate::{PremultipliedColorU8, SpreadMode, PixmapRef};
 
 use crate::geom::ScreenIntRect;
-use crate::pixmap::SubPixmapMut;
+use crate::pipeline::GenericPixmapMut;
 use crate::wide::{f32x8, i32x8, u32x8};
 
 pub const STAGE_WIDTH: usize = 8;
@@ -29,7 +29,7 @@ pub struct Pipeline<'a, 'b: 'a> {
     index: usize,
     functions: &'a [StageFn],
     pixmap_src: PixmapRef<'a>,
-    pixmap_dst: &'a mut SubPixmapMut<'b>,
+    pixmap_dst: GenericPixmapMut<'b>,
     ctx: &'a mut super::Context, // TODO: remove mut
     mask_ctx: super::MaskCtx<'a>,
     aa_mask_ctx: super::AAMaskCtx,
@@ -151,7 +151,7 @@ pub fn start(
     mask_ctx: super::MaskCtx,
     ctx: &mut super::Context,
     pixmap_src: PixmapRef,
-    pixmap_dst: &mut SubPixmapMut,
+    pixmap_dst: GenericPixmapMut,
 ) {
     let mut p = Pipeline {
         index: 0,
@@ -321,7 +321,7 @@ fn gather_ix(pixmap: PixmapRef, mut x: f32x8, mut y: f32x8) -> u32x8 {
     x = x.max(f32x8::default()).min(f32x8::splat(w));
     y = y.max(f32x8::default()).min(f32x8::splat(h));
 
-    (y.trunc_int() * i32x8::splat(pixmap.width() as i32) + x.trunc_int()).to_u32x8_bitcast()
+    (y.trunc_int() * i32x8::splat(pixmap.stride() as i32) + x.trunc_int() * i32x8::splat(4)).to_u32x8_bitcast()
 }
 
 #[inline(always)]
