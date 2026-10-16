@@ -95,7 +95,7 @@ impl SweepGradient {
             cs,
             &|p| {
                 p.push(Stage::XYToUnitAngle);
-                if scale != 1.0 && bias != 0.0 {
+                if scale != 1.0 || bias != 0.0 {
                     p.push(Stage::ApplyConcentricScaleBias)
                 }
             },
