@@ -255,3 +255,69 @@ fn clipped_circle_aa() {
     let expected = Pixmap::load_png("tests/images/hairline/clipped-circle-aa.png").unwrap();
     assert_eq!(pixmap, expected);
 }
+
+#[test]
+fn one_pixel_high_stroke() {
+    let mut pixmap = Pixmap::new(64, 1).unwrap();
+    let mut builder = PathBuilder::new();
+    builder.move_to(0.0, 0.5);
+    builder.line_to(64.0, 0.5);
+    let path = builder.finish().unwrap();
+    let mut paint = Paint::default();
+    paint.set_color_rgba8(255, 0, 0, 255);
+    pixmap.stroke_path(&path, &paint, &Stroke::default(), Transform::identity(), None);
+
+    let mut expected = Pixmap::new(64, 1).unwrap();
+    expected.fill(Color::from_rgba8(255, 0, 0, 255));
+    assert_eq!(pixmap, expected);
+}
+
+#[test]
+fn tiny_canvas_strokes_match_cropped_canvas() {
+    // A small destination must clip a stroke, not discard it. A larger canvas
+    // supplies the same rasterization with room for the hairline culling inset.
+    // Keep endpoints outside both canvases so cap clipping does not affect it.
+    for (width, height) in [(64, 1), (64, 2), (1, 64), (2, 64), (1, 1), (2, 2), (3, 3)] {
+        for anti_alias in [false, true] {
+            for stroke_width in [0.5, 1.0] {
+                for line_cap in [LineCap::Butt, LineCap::Round, LineCap::Square] {
+                    for curve in 0..3 {
+                        let mut builder = PathBuilder::new();
+                        let x = width as f32;
+                        let y = height as f32;
+                        if width < height {
+                            builder.move_to(x * 0.5, -8.0);
+                            match curve {
+                                0 => builder.line_to(x * 0.5, y + 8.0),
+                                1 => builder.quad_to(x * 0.5, y * 0.5, x * 0.5, y + 8.0),
+                                _ => builder.cubic_to(x * 0.5, 0.0, x * 0.5, y, x * 0.5, y + 8.0),
+                            }
+                        } else {
+                            builder.move_to(-8.0, y * 0.5);
+                            match curve {
+                                0 => builder.line_to(x + 8.0, y * 0.5),
+                                1 => builder.quad_to(x * 0.5, y * 0.5, x + 8.0, y * 0.5),
+                                _ => builder.cubic_to(0.0, y * 0.5, x, y * 0.5, x + 8.0, y * 0.5),
+                            }
+                        }
+                        let path = builder.finish().unwrap();
+                        let mut paint = Paint::default();
+                        paint.set_color_rgba8(50, 127, 150, 200);
+                        paint.anti_alias = anti_alias;
+                        let stroke = Stroke {
+                            width: stroke_width,
+                            line_cap,
+                            ..Stroke::default()
+                        };
+                        let mut actual = Pixmap::new(width, height).unwrap();
+                        actual.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+                        let mut padded = Pixmap::new(width + 8, height + 8).unwrap();
+                        padded.stroke_path(&path, &paint, &stroke, Transform::from_translate(4.0, 4.0), None);
+                        let expected = padded.clone_rect(IntRect::from_xywh(4, 4, width, height).unwrap()).unwrap();
+                        assert_eq!(actual, expected, "{width}x{height}, AA={anti_alias}, width={stroke_width}, cap={line_cap:?}, curve={curve}");
+                    }
+                }
+            }
+        }
+    }
+}

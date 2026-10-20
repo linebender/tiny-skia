@@ -192,10 +192,9 @@ pub fn stroke_path_impl(
                 Some(v) => outset_clip = Some(v),
                 None => return,
             }
-            match clip.to_int_rect().inset(1, 1) {
-                Some(v) => inset_clip = Some(v),
-                None => return,
-            }
+            // Small clips may have no interior after insetting. Keep clipping
+            // every segment in that case instead of discarding the stroke.
+            inset_clip = clip.to_int_rect().inset(1, 1);
         }
     }
 
