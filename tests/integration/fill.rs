@@ -450,6 +450,23 @@ fn overflow_in_walk_edges_1() {
 }
 
 #[test]
+fn large_circle() {
+    for center_y in [-1e8, 0.0, 1e8] {
+        let path = PathBuilder::from_circle(0.0, center_y, 1e9).unwrap();
+        for anti_alias in [false, true] {
+            for fill_rule in [FillRule::Winding, FillRule::EvenOdd] {
+                let mut pixmap = Pixmap::new(1, 1).unwrap();
+                let mut paint = Paint::default();
+                paint.anti_alias = anti_alias;
+                // Must not panic.
+                pixmap.fill_path(&path, &paint, fill_rule, Transform::identity(), None);
+                assert_eq!(pixmap.data(), &[0, 0, 0, 255]);
+            }
+        }
+    }
+}
+
+#[test]
 fn clip_line_1() {
     let mut paint = Paint::default();
     paint.set_color_rgba8(50, 127, 150, 200);

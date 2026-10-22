@@ -161,18 +161,18 @@ pub fn fill_path_impl(
         ..LineEdge::default()
     }));
 
-    start_y <<= shift_edges_up;
-    stop_y <<= shift_edges_up;
-
-    let top = shifted_clip.shifted().y() as i32;
+    let top = clip_rect.y() as i32;
     if !path_contained_in_clip && start_y < top {
         start_y = top;
     }
 
-    let bottom = shifted_clip.shifted().bottom() as i32;
+    let bottom = clip_rect.bottom() as i32;
     if !path_contained_in_clip && stop_y > bottom {
         stop_y = bottom;
     }
+
+    start_y <<= shift_edges_up;
+    stop_y <<= shift_edges_up;
 
     let start_y = match u32::try_from(start_y) {
         Ok(v) => v,
