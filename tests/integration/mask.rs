@@ -1,6 +1,20 @@
 use tiny_skia::*;
 
 #[test]
+fn large_circle() {
+    for center_y in [-1e8, 0.0, 1e8] {
+        let path = PathBuilder::from_circle(0.0, center_y, 1e9).unwrap();
+        for anti_alias in [false, true] {
+            for fill_rule in [FillRule::Winding, FillRule::EvenOdd] {
+                let mut mask = Mask::new(1, 1).unwrap();
+                mask.fill_path(&path, fill_rule, anti_alias, Transform::identity());
+                assert_eq!(mask.data(), &[255]);
+            }
+        }
+    }
+}
+
+#[test]
 fn rect() {
     let clip_path = PathBuilder::from_rect(Rect::from_xywh(10.0, 10.0, 80.0, 80.0).unwrap());
     let mut mask = Mask::new(100, 100).unwrap();
