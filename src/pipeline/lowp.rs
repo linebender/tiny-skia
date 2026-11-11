@@ -599,36 +599,89 @@ fn repeat_x1(p: &mut Pipeline) {
     p.next_stage();
 }
 
+/// Up to this many `t_values`, the gradient stage counts every stop; above it,
+/// it searches (see `stop_index`).
+const LINEAR_STOP_COUNT_MAX_LEN: usize = 12;
+
 fn gradient(p: &mut Pipeline) {
     let ctx = &p.ctx.gradient;
 
     // N.B. The loop starts at 1 because idx 0 is the color to use before the first stop.
     let t = join(&p.r, &p.g);
     let mut idx = u16x16::splat(0);
-    for i in 1..ctx.len {
-        let tt = ctx.t_values[i].get();
-        let t0: [f32; 8] = t.0.into();
-        let t1: [f32; 8] = t.1.into();
-        idx.0[ 0] += (t0[0] >= tt) as u16;
-        idx.0[ 1] += (t0[1] >= tt) as u16;
-        idx.0[ 2] += (t0[2] >= tt) as u16;
-        idx.0[ 3] += (t0[3] >= tt) as u16;
-        idx.0[ 4] += (t0[4] >= tt) as u16;
-        idx.0[ 5] += (t0[5] >= tt) as u16;
-        idx.0[ 6] += (t0[6] >= tt) as u16;
-        idx.0[ 7] += (t0[7] >= tt) as u16;
-        idx.0[ 8] += (t1[0] >= tt) as u16;
-        idx.0[ 9] += (t1[1] >= tt) as u16;
-        idx.0[10] += (t1[2] >= tt) as u16;
-        idx.0[11] += (t1[3] >= tt) as u16;
-        idx.0[12] += (t1[4] >= tt) as u16;
-        idx.0[13] += (t1[5] >= tt) as u16;
-        idx.0[14] += (t1[6] >= tt) as u16;
-        idx.0[15] += (t1[7] >= tt) as u16;
+    if ctx.len <= LINEAR_STOP_COUNT_MAX_LEN {
+        for i in 1..ctx.len {
+            let tt = ctx.t_values[i].get();
+            let t0: [f32; 8] = t.0.into();
+            let t1: [f32; 8] = t.1.into();
+            idx.0[ 0] += (t0[0] >= tt) as u16;
+            idx.0[ 1] += (t0[1] >= tt) as u16;
+            idx.0[ 2] += (t0[2] >= tt) as u16;
+            idx.0[ 3] += (t0[3] >= tt) as u16;
+            idx.0[ 4] += (t0[4] >= tt) as u16;
+            idx.0[ 5] += (t0[5] >= tt) as u16;
+            idx.0[ 6] += (t0[6] >= tt) as u16;
+            idx.0[ 7] += (t0[7] >= tt) as u16;
+            idx.0[ 8] += (t1[0] >= tt) as u16;
+            idx.0[ 9] += (t1[1] >= tt) as u16;
+            idx.0[10] += (t1[2] >= tt) as u16;
+            idx.0[11] += (t1[3] >= tt) as u16;
+            idx.0[12] += (t1[4] >= tt) as u16;
+            idx.0[13] += (t1[5] >= tt) as u16;
+            idx.0[14] += (t1[6] >= tt) as u16;
+            idx.0[15] += (t1[7] >= tt) as u16;
+        }
+    } else {
+        idx = search_stops(&ctx.t_values[1..ctx.len], &t);
     }
     gradient_lookup(ctx, &idx, t, &mut p.r, &mut p.g, &mut p.b, &mut p.a);
 
     p.next_stage();
+}
+
+/// Counting every stop costs O(stops) per pixel. t_values[1..len] are
+/// non-decreasing (Gradient::new makes the positions monotonic), so the count
+/// of stops with `t >= t_i` is a partition point, NaN included. The first lane
+/// binary-searches for it; each later lane walks from the previous lane's
+/// index (see stop_index). Kept out of line so that it doesn't slow down the
+/// linear count in `gradient`.
+#[inline(never)]
+fn search_stops(stops: &[tiny_skia_path::NormalizedF32], t: &f32x16) -> u16x16 {
+    let mut idx = u16x16::splat(0);
+    let t0: [f32; 8] = t.0.into();
+    let t1: [f32; 8] = t.1.into();
+    let mut guess = stops.partition_point(|tt| tt.get() <= t0[0]);
+    for lane in 0..16 {
+        let t = if lane < 8 { t0[lane] } else { t1[lane - 8] };
+        guess = stop_index(stops, t, guess);
+        idx.0[lane] = guess as u16;
+    }
+    idx
+}
+
+/// The number of stops at or below `t`, as
+/// `stops.partition_point(|tt| tt.get() <= t)`, walked from `guess` (the
+/// previous lane's index: neighbouring pixels sit at nearly the same `t`).
+/// `tt <= t` holds for a prefix of the non-decreasing stops and fails after
+/// it (everywhere for a NaN `t`), so the one index where it stops holding
+/// is the partition point; a walk longer than four steps searches instead.
+#[inline(always)]
+pub(super) fn stop_index(
+    stops: &[tiny_skia_path::NormalizedF32],
+    t: f32,
+    guess: usize,
+) -> usize {
+    let mut index = guess.min(stops.len());
+    for _ in 0..4 {
+        if index < stops.len() && stops[index].get() <= t {
+            index += 1;
+        } else if index > 0 && !(stops[index - 1].get() <= t) {
+            index -= 1;
+        } else {
+            return index;
+        }
+    }
+    stops.partition_point(|tt| tt.get() <= t)
 }
 
 fn evenly_spaced_2_stop_gradient(p: &mut Pipeline) {
@@ -899,4 +952,49 @@ fn join(lo: &u16x16, hi: &u16x16) -> f32x16 {
 fn mad(f: f32x16, m: f32x16, a: f32x16) -> f32x16 {
     // NEON vmlaq_f32 doesn't seem to affect performance in any way. Ignore it.
     f * m + a
+}
+
+#[cfg(test)]
+mod stop_index_tests {
+    use super::stop_index;
+    use alloc::vec;
+    use alloc::vec::Vec;
+    use tiny_skia_path::NormalizedF32;
+
+    /// The index the gradient stage used to compute: the number of stops
+    /// with `t >= t_i`.
+    fn linear_count(stops: &[NormalizedF32], t: f32) -> usize {
+        stops.iter().filter(|tt| t >= tt.get()).count()
+    }
+
+    #[test]
+    fn matches_the_linear_count_from_every_guess() {
+        let stop_sets: &[&[f32]] = &[
+            &[1.0],
+            &[0.5, 1.0],
+            &[0.0, 0.0, 1.0],
+            &[0.1, 0.2, 0.2, 0.2, 0.7, 1.0, 1.0],
+            &[0.25, 0.5, 0.75, 1.0],
+        ];
+        let mut evenly_spaced: Vec<f32> = (1..=256).map(|i| i as f32 / 256.0).collect();
+        evenly_spaced.insert(100, evenly_spaced[99]);
+        for values in stop_sets.iter().copied().chain([evenly_spaced.as_slice()]) {
+            let stops: Vec<NormalizedF32> =
+                values.iter().map(|v| NormalizedF32::new_clamped(*v)).collect();
+            let mut ts = vec![-1.0, 0.0, 0.5, 1.0, 2.0, f32::NAN, f32::INFINITY, f32::NEG_INFINITY];
+            for v in values {
+                ts.extend([*v, v - 1e-4, v + 1e-4]);
+            }
+            for t in ts {
+                let expected = linear_count(&stops, t);
+                for guess in 0..stops.len() + 3 {
+                    assert_eq!(
+                        stop_index(&stops, t, guess),
+                        expected,
+                        "stops {values:?}, t {t}, guess {guess}"
+                    );
+                }
+            }
+        }
+    }
 }

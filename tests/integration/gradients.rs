@@ -589,3 +589,107 @@ fn sweep_gradient_full() {
     let expected = Pixmap::load_png("tests/images/gradients/sweep-gradient-full.png").unwrap();
     assert_eq!(pixmap, expected);
 }
+
+// Gradients with many stops. Every step is drawn by two stops at its edges, so
+// neighbouring steps meet at duplicate stops (hard edges), and each pixel's
+// expected color is computed independently of the pipeline.
+
+fn step_color(step: usize) -> [u8; 3] {
+    [(step * 2 % 256) as u8, (255 - step % 256) as u8, (step * 37 % 256) as u8]
+}
+
+/// Two stops a step: `steps` constant-colored steps between t = 0 and 1.
+fn step_stops(steps: usize) -> Vec<GradientStop> {
+    (0..steps)
+        .flat_map(|step| {
+            let [r, g, b] = step_color(step);
+            let color = Color::from_rgba8(r, g, b, 255);
+            [
+                GradientStop::new(step as f32 / steps as f32, color),
+                GradientStop::new((step + 1) as f32 / steps as f32, color),
+            ]
+        })
+        .collect()
+}
+
+/// Paints `shader` over a `width` x 1 pixmap and checks that pixel x has the
+/// color of step `step(x)`. Pixel x samples its centre x + 0.5; each case
+/// keeps every centre off a step edge.
+fn assert_steps(
+    shader: Shader<'static>,
+    width: u32,
+    force_hq_pipeline: bool,
+    step: impl Fn(usize) -> usize,
+) {
+    let mut paint = Paint::default();
+    paint.shader = shader;
+    paint.force_hq_pipeline = force_hq_pipeline;
+    let mut pixmap = Pixmap::new(width, 1).unwrap();
+    pixmap.fill_rect(
+        Rect::from_xywh(0.0, 0.0, width as f32, 1.0).unwrap(),
+        &paint,
+        Transform::identity(),
+        None,
+    );
+    for (x, pixel) in pixmap.pixels().iter().enumerate() {
+        let [r, g, b] = step_color(step(x));
+        assert_eq!(
+            [pixel.red(), pixel.green(), pixel.blue(), pixel.alpha()],
+            [r, g, b, 255],
+            "pixel {x}, hq {force_hq_pipeline}"
+        );
+    }
+}
+
+fn step_linear(steps: usize, from: f32, to: f32) -> Shader<'static> {
+    LinearGradient::new(
+        Point::from_xy(from, 0.0),
+        Point::from_xy(to, 0.0),
+        step_stops(steps),
+        SpreadMode::Pad,
+        Transform::identity(),
+    )
+    .unwrap()
+}
+
+#[test]
+fn many_stops_linear() {
+    // 256 stops over 1024 pixels: eight pixels a step.
+    for hq in [false, true] {
+        assert_steps(step_linear(128, 0.0, 1024.0), 1024, hq, |x| x / 8);
+    }
+}
+
+#[test]
+fn many_stops_linear_reversed() {
+    // Right to left: each pixel's stop is at or below the previous one's.
+    for hq in [false, true] {
+        assert_steps(step_linear(128, 1024.0, 0.0), 1024, hq, |x| (1023 - x) / 8);
+    }
+}
+
+#[test]
+fn more_stops_than_pixels_linear() {
+    // 2048 stops over 64 pixels: 32 stops between neighbouring pixels.
+    for hq in [false, true] {
+        assert_steps(step_linear(1024, 0.0, 64.0), 64, hq, |x| 16 * x + 8);
+    }
+}
+
+#[test]
+fn many_stops_radial() {
+    // Centred on the row: t falls to the centre and rises after it.
+    for hq in [false, true] {
+        let shader = RadialGradient::new(
+            Point::from_xy(512.0, 0.5),
+            0.0,
+            Point::from_xy(512.0, 0.5),
+            512.0,
+            step_stops(128),
+            SpreadMode::Pad,
+            Transform::identity(),
+        )
+        .unwrap();
+        assert_steps(shader, 1024, hq, |x| (2 * x).abs_diff(1023) / 8);
+    }
+}
