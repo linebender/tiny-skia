@@ -913,29 +913,52 @@ fn repeat_x1(p: &mut Pipeline) {
     p.next_stage();
 }
 
+/// Up to this many `t_values`, the gradient stage counts every stop; above it,
+/// it searches (see `lowp::stop_index`). The vectorized count stays ahead of
+/// the per-lane search longer here than in lowp.
+const LINEAR_STOP_COUNT_MAX_LEN: usize = 48;
+
 fn gradient(p: &mut Pipeline) {
     let ctx = &p.ctx.gradient;
 
     // N.B. The loop starts at 1 because idx 0 is the color to use before the first stop.
     let t: [f32; 8] = p.r.into();
     let mut idx = u32x8::default();
-    for i in 1..ctx.len {
-        let tt = ctx.t_values[i].get();
-        let n: u32x8 = bytemuck::cast([
-            (t[0] >= tt) as u32,
-            (t[1] >= tt) as u32,
-            (t[2] >= tt) as u32,
-            (t[3] >= tt) as u32,
-            (t[4] >= tt) as u32,
-            (t[5] >= tt) as u32,
-            (t[6] >= tt) as u32,
-            (t[7] >= tt) as u32,
-        ]);
-        idx = idx + n;
+    if ctx.len <= LINEAR_STOP_COUNT_MAX_LEN {
+        for i in 1..ctx.len {
+            let tt = ctx.t_values[i].get();
+            let n: u32x8 = bytemuck::cast([
+                (t[0] >= tt) as u32,
+                (t[1] >= tt) as u32,
+                (t[2] >= tt) as u32,
+                (t[3] >= tt) as u32,
+                (t[4] >= tt) as u32,
+                (t[5] >= tt) as u32,
+                (t[6] >= tt) as u32,
+                (t[7] >= tt) as u32,
+            ]);
+            idx = idx + n;
+        }
+    } else {
+        idx = search_stops(&ctx.t_values[1..ctx.len], &t);
     }
     gradient_lookup(ctx, &idx, p.r, &mut p.r, &mut p.g, &mut p.b, &mut p.a);
 
     p.next_stage();
+}
+
+/// Same search as lowp::gradient: the first lane binary-searches, later lanes
+/// walk from the previous lane's index (lowp::stop_index). Kept out of line so
+/// that it doesn't slow down the linear count above.
+#[inline(never)]
+fn search_stops(stops: &[tiny_skia_path::NormalizedF32], t: &[f32; 8]) -> u32x8 {
+    let mut lanes = [0u32; 8];
+    let mut guess = stops.partition_point(|tt| tt.get() <= t[0]);
+    for lane in 0..8 {
+        guess = super::lowp::stop_index(stops, t[lane], guess);
+        lanes[lane] = guess as u32;
+    }
+    bytemuck::cast(lanes)
 }
 
 fn gradient_lookup(

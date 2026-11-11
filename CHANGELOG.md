@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
+### Changed
+- Gradients with many stops render faster: the gradient stage finds each pixel's stop
+  with a binary search and a short walk from the neighbouring pixel's stop instead of
+  comparing against every stop. Rendered pixels are unchanged.
 
 ## [0.12.0] - 2026-02-02
 ### Fixed
